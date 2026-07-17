@@ -15,7 +15,6 @@ console = Console()
 # Plataformas a verificar: (nombre, url_template, metodo_deteccion)
 # metodo_deteccion:
 #   "status" = 200 existe, 404 no existe
-#   "redirect" = si redirige a otra pagina, no existe
 #   "text:XXX" = si el texto XXX aparece en la respuesta, NO existe
 PLATFORMS = [
     # Redes sociales principales
@@ -55,6 +54,15 @@ PLATFORMS = [
     ("Replit", "https://replit.com/@{}", "status"),
 ]
 
+# Plataformas donde un HTTP 200 es SEÑAL DÉBIL de existencia: sirven muros de
+# login, paginas genericas o bloqueos anti-bot con 200 incluso para usuarios
+# inexistentes (con deteccion "status" hay muchos falsos positivos). Los
+# hallazgos en estas plataformas se marcan como "confirmar manualmente".
+WEAK_SIGNAL_PLATFORMS = {
+    "Instagram", "TikTok", "LinkedIn", "Pinterest", "Spotify",
+    "Flickr", "VSCO", "Cash App", "Tumblr", "Facebook",
+}
+
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -68,6 +76,7 @@ def _check_platform(platform_name: str, url: str, method: str) -> dict:
         "platform": platform_name,
         "url": url,
         "found": False,
+        "weak": platform_name in WEAK_SIGNAL_PLATFORMS,
         "error": None,
     }
     try:
@@ -83,8 +92,6 @@ def _check_platform(platform_name: str, url: str, method: str) -> dict:
         elif method.startswith("text:"):
             search_text = method[5:]
             result["found"] = resp.status_code == 200 and search_text.lower() not in resp.text.lower()
-        elif method == "redirect":
-            result["found"] = not resp.is_redirect and resp.status_code == 200
 
     except requests.exceptions.Timeout:
         result["error"] = "timeout"
@@ -176,17 +183,29 @@ class ProfileChecker:
                 show_lines=True,
             )
             table.add_column("Plataforma", style="bold", max_width=15)
-            table.add_column("URL del Perfil", max_width=60)
-            table.add_column("Tuyo?", justify="center", max_width=8)
+            table.add_column("URL del Perfil", max_width=55)
+            table.add_column("Confianza", justify="center", max_width=18)
 
+            has_weak = any(p.get("weak") for p in found)
             for profile in found:
+                if profile.get("weak"):
+                    conf = "[yellow]señal débil *[/yellow]"
+                else:
+                    conf = "[green]probable[/green]"
                 table.add_row(
                     profile["platform"],
                     profile["url"],
-                    "[yellow]?[/yellow]",
+                    conf,
                 )
 
             console.print(table)
+
+            if has_weak:
+                console.print(
+                    "[dim]* Plataformas que devuelven 200 incluso para usuarios "
+                    "inexistentes (muros de login / anti-bot). Abre la URL para "
+                    "confirmar que el perfil realmente existe.[/dim]"
+                )
 
             console.print(Panel(
                 "[bold]Revisa cada perfil encontrado:[/bold]\n\n"

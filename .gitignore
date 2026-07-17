@@ -8,3 +8,8 @@ build/
 venv/
 images/
 .claude/
+CLAUDE.md
+docs/session-context/
+
+# Proyecto ajeno que vive en este mismo directorio de trabajo (repo git propio)
+Busqueda_Archivos/

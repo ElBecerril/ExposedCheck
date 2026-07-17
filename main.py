@@ -19,6 +19,7 @@ from rich import box
 from checkers import (
     EmailChecker, UsernameChecker, PhoneChecker,
     PasswordChecker, ImageChecker, ProfileChecker,
+    EmailFinder, EmailFingerprint,
 )
 from reporting import ConsoleReporter, RemediationGuide
 
@@ -47,6 +48,8 @@ MENU = """
   [cyan]5[/cyan] - Busqueda inversa de imagenes (detectar uso de tus fotos)
   [cyan]6[/cyan] - Buscar perfiles duplicados en redes sociales
   [cyan]7[/cyan] - Verificacion completa (email + username + password)
+  [cyan]8[/cyan] - Buscar email asociado a un username
+  [cyan]9[/cyan] - [bold magenta]Fingerprint de email (OSINT completo)[/bold magenta]
   [cyan]0[/cyan] - Salir
 """
 
@@ -94,6 +97,16 @@ Ejemplos:
         help="Buscar un username en 25+ plataformas para detectar perfiles duplicados",
     )
     parser.add_argument(
+        "--find-email",
+        metavar="USERNAME",
+        help="Buscar emails asociados a un username (OSINT + verificacion de brechas)",
+    )
+    parser.add_argument(
+        "--fingerprint",
+        metavar="EMAIL",
+        help="Fingerprint OSINT completo de un email (brechas, perfiles, servicios, dominio)",
+    )
+    parser.add_argument(
         "--no-open",
         action="store_true",
         help="No abrir automaticamente URLs en el navegador (solo mostrar)",
@@ -115,7 +128,7 @@ def interactive_mode() -> None:
 
     while True:
         console.print(MENU)
-        choice = Prompt.ask("[bold]Elige una opcion[/bold]", choices=["0", "1", "2", "3", "4", "5", "6", "7"], default="0")
+        choice = Prompt.ask("[bold]Elige una opcion[/bold]", choices=["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"], default="0")
 
         if choice == "0":
             console.print("\n[cyan]Hasta luego. Mantente seguro.[/cyan]\n")
@@ -141,6 +154,12 @@ def interactive_mode() -> None:
 
         elif choice == "7":
             _interactive_full(reporter, remediation)
+
+        elif choice == "8":
+            _interactive_email_finder()
+
+        elif choice == "9":
+            _interactive_fingerprint()
 
         # Preguntar si quiere hacer otra verificacion
         if choice != "0":
@@ -241,7 +260,11 @@ def _interactive_image() -> None:
         "[bold]Opciones:[/bold]\n"
         "  - Ruta a una foto:   C:\\Users\\tu_usuario\\foto.jpg\n"
         "  - Ruta a una carpeta con fotos:   C:\\Users\\tu_usuario\\mis_fotos\\\n"
-        "  - URL de una imagen:   https://ejemplo.com/foto.jpg",
+        "  - URL de una imagen:   https://ejemplo.com/foto.jpg\n\n"
+        "[yellow]Aviso:[/yellow] si das una ruta local, la foto se sube a un host "
+        "publico temporal (litterbox.catbox.moe) para poder buscarla en Yandex/"
+        "Google/TinEye. La URL generada expira en 1 hora, pero durante ese tiempo "
+        "cualquiera con el enlace puede verla.",
         title="[bold]Busqueda Inversa de Imagenes[/bold]",
         border_style="cyan",
     ))
@@ -267,6 +290,68 @@ def _interactive_profiles() -> None:
     checker = ProfileChecker()
     results = checker.check(username)
     checker.print_results(results)
+
+
+def _interactive_email_finder() -> None:
+    """Busca emails asociados a un username usando OSINT."""
+    console.print(Panel(
+        "Busca emails asociados a un nombre de usuario usando:\n\n"
+        "[bold]Fase 1:[/bold] Extraccion directa de GitHub y GitLab\n"
+        "[bold]Fase 2:[/bold] Generacion de candidatos + verificacion en brechas\n\n"
+        "[dim]Util si perdiste acceso a una cuenta y no recuerdas el email asociado.[/dim]",
+        title="[bold]Buscar Email por Username[/bold]",
+        border_style="cyan",
+    ))
+
+    username = Prompt.ask("\n[bold]Introduce el nombre de usuario[/bold]").strip()
+    if not username:
+        console.print("[red]No se introdujo un username.[/red]")
+        return
+
+    console.rule(f"[bold]Buscando emails para: {username}[/bold]")
+    finder = EmailFinder()
+    result = finder.check(username)
+    finder.print_results(result)
+
+
+def _interactive_fingerprint() -> None:
+    """Fingerprint OSINT completo de un email."""
+    console.print(Panel(
+        "Realiza un analisis OSINT completo de un email:\n\n"
+        "[bold]1.[/bold] Analisis del dominio (MX records, proveedor)\n"
+        "[bold]2.[/bold] Gravatar (nombre, foto, cuentas vinculadas)\n"
+        "[bold]3.[/bold] Brechas de datos y infostealers\n"
+        "[bold]4.[/bold] Presencia en GitHub/GitLab\n"
+        "[bold]5.[/bold] Deteccion de servicios registrados\n"
+        "[bold]6.[/bold] Busqueda de perfiles con username derivado\n\n"
+        "[dim]Util para investigar actividad tras el robo de una cuenta.[/dim]\n\n"
+        "[yellow]Uso responsable:[/yellow] esta herramienta consulta APIs de "
+        "terceros (Spotify, WordPress, Duolingo, GitHub, etc.) para saber si "
+        "un email esta registrado en esos servicios. Usala solo con tu propio "
+        "email o con autorizacion expresa del titular -- verificar cuentas "
+        "ajenas sin consentimiento puede ser doxing/stalking y violar los "
+        "terminos de servicio de esas plataformas.",
+        title="[bold magenta]Email Fingerprint[/bold magenta]",
+        border_style="magenta",
+    ))
+
+    email = Prompt.ask("\n[bold]Introduce el email a investigar[/bold]").strip()
+    if not email or "@" not in email:
+        console.print("[red]Email no valido.[/red]")
+        return
+
+    if not Confirm.ask(
+        "\n[yellow]¿Confirmas que este email es tuyo o cuentas con "
+        "autorizacion del titular para investigarlo?[/yellow]",
+        default=False,
+    ):
+        console.print("[cyan]Cancelado.[/cyan]")
+        return
+
+    console.rule(f"[bold magenta]Fingerprint: {email}[/bold magenta]")
+    fp = EmailFingerprint()
+    result = fp.fingerprint(email)
+    fp.print_results(result)
 
 
 def _interactive_full(reporter: ConsoleReporter, remediation: RemediationGuide) -> None:
@@ -373,6 +458,26 @@ def cli_mode(args: argparse.Namespace) -> None:
         results = checker.check(args.search_profiles)
         checker.print_results(results)
 
+    # --- Fingerprint de email ---
+    if args.fingerprint:
+        console.print(
+            "[yellow]Uso responsable:[/yellow] --fingerprint consulta APIs de "
+            "terceros para saber si el email esta registrado en esos "
+            "servicios. Usalo solo con emails propios o con autorizacion "
+            "expresa del titular.\n"
+        )
+        console.rule(f"[bold magenta]Fingerprint: {args.fingerprint}[/bold magenta]")
+        fp = EmailFingerprint()
+        result = fp.fingerprint(args.fingerprint)
+        fp.print_results(result)
+
+    # --- Busqueda de email por username ---
+    if args.find_email:
+        console.rule(f"[bold]Buscando emails para: {args.find_email}[/bold]")
+        finder = EmailFinder()
+        result = finder.check(args.find_email)
+        finder.print_results(result)
+
     # --- Guia de Remediacion ---
     combined = _merge_reports(all_reports)
     if combined:
@@ -409,7 +514,9 @@ if __name__ == "__main__":
         # Si no se paso ningun argumento, modo interactivo
         has_any = (
             args.email or args.username or args.phone
-            or args.reverse_image or args.search_profiles or args.check_password
+            or args.reverse_image or args.search_profiles
+            or args.check_password or args.find_email
+            or args.fingerprint
         )
         if has_any:
             cli_mode(args)

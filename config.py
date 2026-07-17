@@ -17,6 +17,9 @@ LEAKCHECK_PUBLIC_URL = "https://leakcheck.io/api/public"
 HUDSONROCK_EMAIL_URL = "https://cavalier.hudsonrock.com/api/json/v2/osint-tools/search-by-email"
 HUDSONROCK_USERNAME_URL = "https://cavalier.hudsonrock.com/api/json/v2/osint-tools/search-by-username"
 
+GITHUB_API_URL = "https://api.github.com"
+GITLAB_API_URL = "https://gitlab.com/api/v4"
+
 # --- API Keys opcionales ---
 
 BREACHDIRECTORY_API_KEY = os.getenv("BREACHDIRECTORY_API_KEY", "")

@@ -12,6 +12,10 @@
 
 Herramienta CLI para verificar si tus datos personales aparecen en brechas de seguridad conocidas. Consulta multiples APIs gratuitas, detecta perfiles duplicados, realiza busqueda inversa de imagenes y genera guias de remediacion.
 
+## Uso responsable
+
+ExposedCheck esta pensado para que verifiques **tu propia** exposicion de datos (o la de alguien que te dio autorizacion expresa), no para investigar o perfilar a terceros sin su consentimiento. En particular, el modo `--fingerprint` consulta endpoints internos de signup/recuperacion de varios servicios (Spotify, WordPress, Duolingo, GitHub, etc.) para saber si un email esta registrado ahi; usarlo contra emails ajenos sin autorizacion puede constituir doxing/stalking y violar los terminos de servicio de esas plataformas. La busqueda inversa de imagenes tambien sube el archivo a un host publico temporal (litterbox.catbox.moe, expira en 1h) — solo sube fotos que tengas derecho a compartir.
+
 ## Funcionalidades
 
 - **Modo interactivo** - Menu guiado paso a paso, no requiere conocimiento tecnico
@@ -21,6 +25,8 @@ Herramienta CLI para verificar si tus datos personales aparecen en brechas de se
 - **Verificacion de password** - Comprueba si un password fue filtrado usando k-anonymity (nunca se envia el password completo)
 - **Busqueda inversa de imagenes** - Sube tus fotos a Yandex, Google Lens y TinEye para detectar si alguien las usa sin autorizacion
 - **Busqueda de perfiles duplicados** - Escanea 25+ plataformas para encontrar cuentas con tu username
+- **Busqueda de email por username** - Extraccion OSINT desde GitHub/GitLab + verificacion en brechas
+- **Fingerprint de email (OSINT completo)** - Analisis integral: dominio (MX/proveedor), Gravatar, brechas, infostealers, presencia en GitHub/GitLab, servicios registrados y perfiles asociados al username derivado
 - **Reporte con nivel de riesgo** - Tablas con colores, alertas de infostealers y resumen visual
 - **Guia de remediacion** - Pasos de accion, links de eliminacion de cuentas, plantilla GDPR Art. 17 y consejos anti-SIM swapping
 
@@ -33,6 +39,9 @@ Herramienta CLI para verificar si tus datos personales aparecen en brechas de se
 | LeakCheck | Si | Si | - | No |
 | Hudson Rock | Si | Si | - | No |
 | BreachDirectory | - | - | - | Opcional (telefono) |
+| GitHub API | Si (busqueda) | Si (commits) | - | No |
+| GitLab API | - | Si (perfil) | - | No |
+| Gravatar | Si (perfil) | - | - | No |
 
 ## Instalacion
 
@@ -67,6 +76,8 @@ python main.py
   5 - Busqueda inversa de imagenes (detectar uso de tus fotos)
   6 - Buscar perfiles duplicados en redes sociales
   7 - Verificacion completa (email + username + password)
+  8 - Buscar email asociado a un username
+  9 - Fingerprint de email (OSINT completo)
   0 - Salir
 ```
 
@@ -95,6 +106,12 @@ python main.py --reverse-image ./mis_fotos/ --no-open
 
 # Buscar perfiles duplicados en 25+ plataformas
 python main.py --search-profiles mi_usuario
+
+# Buscar email asociado a un username (OSINT + brechas)
+python main.py --find-email mi_usuario
+
+# Fingerprint OSINT completo de un email
+python main.py --fingerprint correo@ejemplo.com
 ```
 
 ## Ejemplo de salida
@@ -141,6 +158,9 @@ ExposedCheck/
     hibp.py                     # Pwned Passwords (SHA-1 k-anonymity)
     leakcheck.py                # Email + username
     hudsonrock.py               # Infostealers/malware
+    github_osint.py             # Extraccion de emails desde GitHub
+    gitlab_osint.py             # Extraccion de emails desde GitLab
+    email_generator.py          # Generacion y verificacion de candidatos
 
   checkers/                     # Orquestadores
     email_checker.py            # Verificacion de email
@@ -149,6 +169,8 @@ ExposedCheck/
     password_checker.py         # Verificacion de password
     image_checker.py            # Busqueda inversa de imagenes
     profile_checker.py          # Busqueda de perfiles duplicados
+    email_finder.py             # Busqueda de email por username
+    email_fingerprint.py        # Fingerprint OSINT completo de email
 
   reporting/                    # Reportes
     console_report.py           # Tablas y paneles con Rich
@@ -160,6 +182,7 @@ ExposedCheck/
 - [requests](https://pypi.org/project/requests/) - Cliente HTTP
 - [rich](https://pypi.org/project/rich/) - Interfaz visual en terminal
 - [python-dotenv](https://pypi.org/project/python-dotenv/) - Carga de variables de entorno
+- [dnspython](https://pypi.org/project/dnspython/) - Resolucion MX para fingerprint (opcional, fallback a socket)
 
 ## Privacidad
 
@@ -167,3 +190,7 @@ ExposedCheck/
 - Las imagenes se suben a un hosting temporal que **expira en 1 hora**
 - No se almacena ninguna informacion en servidores externos
 - Todo se ejecuta localmente en tu maquina
+
+## Licencia
+
+MIT

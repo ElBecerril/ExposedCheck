@@ -62,3 +62,13 @@ class CheckReport:
         if self.total_breaches >= 1:
             return "medio"
         return "limpio"
+
+
+@dataclass
+class EmailFinderResult:
+    """Resultado de busqueda de email asociado a un username."""
+    username: str
+    found_emails: list[dict] = field(default_factory=list)       # {email, source, confidence, breach_count}
+    candidate_results: list[dict] = field(default_factory=list)  # candidatos no encontrados
+    platforms_checked: list[str] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
