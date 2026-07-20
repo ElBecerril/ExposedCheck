@@ -1,0 +1,58 @@
+#!/usr/bin/env sh
+# Lanzador de ExposedCheck.
+#
+# Prepara el entorno y ejecuta el CLI en un proceso hijo:
+#   - crea .venv si no existe
+#   - reinstala dependencias solo si requirements.txt cambio (stamp)
+#   - crea .env desde .env.example la primera vez
+#
+# No usa "activate": todo corre con .venv/bin/python, asi que al cerrar el
+# programa el entorno muere con el y tu shell queda intacta.
+#
+# Uso:  ./exposedcheck [flags de main.py]   ej: ./exposedcheck -e a@b.com
+
+set -eu
+
+DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+VENV="$DIR/.venv"
+PY="$VENV/bin/python"
+REQS="$DIR/requirements.txt"
+STAMP="$VENV/.deps-stamp"
+
+log() { printf '\033[2m[exposedcheck]\033[0m %s\n' "$1" >&2; }
+die() { printf '\033[31m[exposedcheck] %s\033[0m\n' "$1" >&2; exit 1; }
+
+# Interprete base para crear el venv (solo se usa si aun no existe).
+if [ ! -x "$PY" ]; then
+    BASE=$(command -v python3 || command -v python) \
+        || die "No encontre python3 en el PATH."
+    log "Creando entorno virtual en .venv ..."
+    "$BASE" -m venv "$VENV" || die "Fallo la creacion del venv."
+fi
+
+# Huella de requirements.txt: reinstalamos solo si cambio.
+[ -f "$REQS" ] || die "Falta requirements.txt en $DIR"
+if command -v sha256sum >/dev/null 2>&1; then
+    HASH=$(sha256sum "$REQS" | cut -d' ' -f1)
+else
+    HASH=$(wc -c <"$REQS" | tr -d ' ')
+fi
+
+if [ ! -f "$STAMP" ] || [ "$(cat "$STAMP")" != "$HASH" ]; then
+    log "Instalando dependencias ..."
+    "$PY" -m pip install --quiet --upgrade pip >/dev/null 2>&1 || true
+    "$PY" -m pip install --quiet -r "$REQS" || die "Fallo la instalacion de dependencias."
+    printf '%s' "$HASH" >"$STAMP"
+    log "Dependencias listas."
+fi
+
+# .env opcional: se crea vacio desde el ejemplo para que sea facil pegar las keys.
+if [ ! -f "$DIR/.env" ] && [ -f "$DIR/.env.example" ]; then
+    cp "$DIR/.env.example" "$DIR/.env"
+    log "Cree .env desde .env.example (las API keys son opcionales)."
+fi
+
+# exec: reemplaza este shell por Python, sin proceso intermedio colgado.
+# Ctrl-C y los codigos de salida llegan directo a main.py.
+cd "$DIR"
+exec "$PY" main.py "$@"

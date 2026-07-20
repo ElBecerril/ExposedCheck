@@ -48,8 +48,31 @@ ExposedCheck esta pensado para que verifiques **tu propia** exposicion de datos 
 ```bash
 git clone https://github.com/ElBecerril/ExposedCheck.git
 cd ExposedCheck
-pip install -r requirements.txt
+./exposedcheck
 ```
+
+El lanzador `./exposedcheck` (Linux/macOS) prepara todo la primera vez: crea el entorno
+virtual `.venv`, instala las dependencias y genera el `.env`. Despues solo reinstala si
+`requirements.txt` cambia. Acepta los mismos flags que `main.py`:
+
+```bash
+./exposedcheck -e correo@ejemplo.com
+```
+
+No activa el venv en tu shell: ejecuta con `.venv/bin/python`, asi que el entorno vive
+solo mientras corre el programa.
+
+<details>
+<summary>Instalacion manual (o Windows)</summary>
+
+```bash
+python -m venv .venv
+source .venv/bin/activate    # fish: source .venv/bin/activate.fish
+                             # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+python main.py
+```
+</details>
 
 Para verificacion de telefono (opcional), crea un archivo `.env` basado en `.env.example`:
 
