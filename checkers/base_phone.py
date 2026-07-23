@@ -27,8 +27,16 @@ class BreachDirectoryAPI:
 
             if resp.status_code == 200:
                 data = resp.json()
-                if data.get("success") and data.get("result"):
-                    for entry in data["result"]:
+                entries = data.get("result") if isinstance(data, dict) else None
+                if data.get("success") and entries:
+                    # "result" suele ser una lista de entradas, pero la API
+                    # tambien devuelve un dict suelto; normalizamos para no
+                    # iterar las claves como si fueran entradas.
+                    if isinstance(entries, dict):
+                        entries = [entries]
+                    for entry in entries:
+                        if not isinstance(entry, dict):
+                            continue
                         sources = entry.get("sources", [])
                         for src in sources:
                             breach = BreachDetail(

@@ -34,12 +34,19 @@ class HudsonRockAPI(BaseAPI):
             if resp.status_code == 200:
                 data = resp.json()
 
-                # Hudson Rock retorna stealers en diferentes campos
-                stealers = data.get("stealers", [])
-                if not stealers and isinstance(data, list):
+                # Hudson Rock retorna stealers en diferentes formas: un dict
+                # con clave "stealers", o directamente una lista top-level.
+                if isinstance(data, list):
                     stealers = data
+                elif isinstance(data, dict):
+                    stealers = data.get("stealers", []) or []
+                else:
+                    result["error"] = "Hudson Rock: respuesta con formato inesperado"
+                    return result
 
                 for s in stealers:
+                    if not isinstance(s, dict):
+                        continue
                     detail = InfostealerDetail(
                         computer_name=s.get("computer_name", ""),
                         operating_system=s.get("operating_system", ""),

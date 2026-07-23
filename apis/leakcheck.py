@@ -39,8 +39,12 @@ class LeakCheckAPI(BaseAPI):
                     msg = data.get("error") or data.get("msg", "")
                     if "not found" in msg.lower():
                         return result
-                    if msg:
-                        result["error"] = f"LeakCheck: {msg}"
+                    # Sin mensaje no podemos distinguir "sin brechas" de un
+                    # fallo real, asi que lo tratamos como fallo de fuente.
+                    result["error"] = (
+                        f"LeakCheck: {msg}" if msg
+                        else "LeakCheck: respuesta sin exito y sin detalle de error"
+                    )
                     return result
 
                 sources = data.get("result", [])
