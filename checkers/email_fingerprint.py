@@ -5,6 +5,7 @@ titular. Ver el aviso mostrado en main.py antes de invocar EmailFingerprint.
 """
 
 import hashlib
+import logging
 import socket
 import urllib.parse
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -19,6 +20,7 @@ from config import REQUEST_TIMEOUT, USER_AGENT
 from apis import XposedOrNotAPI, LeakCheckAPI, HudsonRockAPI, GitHubOsintAPI, GitLabOsintAPI
 
 console = Console()
+logger = logging.getLogger(__name__)
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -67,11 +69,11 @@ class EmailFingerprint:
 
         # --- Fase 1: Info del dominio ---
         with console.status("[bold blue]Analizando dominio..."):
-            result["domain_info"] = self._check_domain(result["domain"])
+            result["domain_info"] = self._check_domain(result["domain"], result["errors"])
 
         # --- Fase 2: Gravatar ---
         with console.status("[bold blue]Consultando Gravatar..."):
-            result["gravatar"] = self._check_gravatar(email)
+            result["gravatar"] = self._check_gravatar(email, result["errors"])
 
         # --- Fase 3: Brechas de datos (paralelo) ---
         with console.status("[bold blue]Consultando bases de datos de brechas..."):
@@ -83,7 +85,7 @@ class EmailFingerprint:
 
         # --- Fase 5: Deteccion de servicios registrados ---
         with console.status("[bold blue]Verificando registro en servicios..."):
-            result["registered_services"] = self._check_services(email)
+            result["registered_services"] = self._check_services(email, result["errors"])
 
         # --- Fase 6: Buscar username derivado en plataformas ---
         username = result["username_part"]
@@ -93,7 +95,7 @@ class EmailFingerprint:
 
         return result
 
-    def _check_domain(self, domain: str) -> dict:
+    def _check_domain(self, domain: str, errors: list) -> dict:
         """Verifica info basica del dominio (MX, tipo)."""
         info = {"exists": False, "mx_records": [], "type": "desconocido"}
         if not domain:
@@ -112,10 +114,12 @@ class EmailFingerprint:
                 socket.getaddrinfo(domain, 25)
                 mx_records = [("?", domain)]
             except Exception:
+                # Fallo la resolucion MX: reintentar por puerto 80.
                 try:
                     socket.getaddrinfo(domain, 80)
                     mx_records = [("?", domain)]
                 except Exception:
+                    # El dominio no resuelve: negativo valido (info.exists queda False).
                     pass
 
             if mx_records:
@@ -149,12 +153,14 @@ class EmailFingerprint:
                 info["type"] = common[domain.lower()]
                 info["exists"] = True
 
-        except Exception:
-            pass
+        except Exception as e:
+            # No enmascarar el fallo como "dominio desconocido": registrarlo.
+            logger.debug("Fallo el analisis de dominio %s: %s", domain, e)
+            errors.append(f"Dominio ({domain}): {e}")
 
         return info
 
-    def _check_gravatar(self, email: str) -> dict | None:
+    def _check_gravatar(self, email: str, errors: list) -> dict | None:
         """Verifica si el email tiene perfil de Gravatar."""
         try:
             email_hash = hashlib.md5(email.strip().lower().encode()).hexdigest()
@@ -178,8 +184,10 @@ class EmailFingerprint:
                         for a in entry.get("accounts", [])
                     ],
                 }
-        except Exception:
-            pass
+        except Exception as e:
+            # Un fallo de red no es lo mismo que "sin Gravatar": registrarlo.
+            logger.debug("Fallo la consulta a Gravatar para %s: %s", email, e)
+            errors.append(f"Gravatar: {e}")
         return None
 
     def _check_breaches(self, email: str, result: dict) -> None:
@@ -247,7 +255,7 @@ class EmailFingerprint:
         except Exception:
             result["gitlab_presence"] = {"found": False}
 
-    def _check_services(self, email: str) -> list[dict]:
+    def _check_services(self, email: str, errors: list) -> list[dict]:
         """Intenta detectar si el email esta registrado en servicios comunes."""
         services = []
 
@@ -267,59 +275,51 @@ class EmailFingerprint:
                 registered = check_fn(email)
                 if registered is not None:
                     services.append({"service": name, "registered": registered})
-            except Exception:
-                pass
+            except Exception as e:
+                # Sin esto, un servicio que falla se veria como "no registrado".
+                logger.debug("Fallo el check de %s: %s", name, e)
+                errors.append(f"{name} (deteccion de registro): {e}")
 
         return services
 
     def _check_spotify(self, email: str) -> bool | None:
         """Verifica si un email esta en Spotify via signup endpoint (no documentado para lookup)."""
-        try:
-            resp = requests.get(
-                "https://spclient.wg.spotify.com/signup/public/v1/account",
-                params={"validate": "1", "email": email},
-                headers=HEADERS,
-                timeout=REQUEST_TIMEOUT,
-            )
-            if resp.status_code == 200:
-                data = resp.json()
-                status = data.get("status", 0)
-                # status 20 = email ya registrado
-                return status == 20
-        except Exception:
-            pass
+        resp = requests.get(
+            "https://spclient.wg.spotify.com/signup/public/v1/account",
+            params={"validate": "1", "email": email},
+            headers=HEADERS,
+            timeout=REQUEST_TIMEOUT,
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            status = data.get("status", 0)
+            # status 20 = email ya registrado
+            return status == 20
         return None
 
     def _check_wordpress(self, email: str) -> bool | None:
         """Verifica existencia en WordPress.com via endpoint no documentado para lookup."""
-        try:
-            resp = requests.get(
-                "https://public-api.wordpress.com/rest/v1.1/users/suggest",
-                params={"email": email},
-                headers={"User-Agent": USER_AGENT},
-                timeout=REQUEST_TIMEOUT,
-            )
-            # Si retorna 200 el email esta asociado
-            return resp.status_code == 200
-        except Exception:
-            pass
-        return None
+        resp = requests.get(
+            "https://public-api.wordpress.com/rest/v1.1/users/suggest",
+            params={"email": email},
+            headers={"User-Agent": USER_AGENT},
+            timeout=REQUEST_TIMEOUT,
+        )
+        # Si retorna 200 el email esta asociado
+        return resp.status_code == 200
 
     def _check_duolingo(self, email: str) -> bool | None:
         """Verifica existencia en Duolingo."""
-        try:
-            resp = requests.get(
-                "https://www.duolingo.com/2017-06-30/users",
-                params={"email": email},
-                headers=HEADERS,
-                timeout=REQUEST_TIMEOUT,
-            )
-            if resp.status_code == 200:
-                data = resp.json()
-                users = data.get("users", [])
-                return len(users) > 0
-        except Exception:
-            pass
+        resp = requests.get(
+            "https://www.duolingo.com/2017-06-30/users",
+            params={"email": email},
+            headers=HEADERS,
+            timeout=REQUEST_TIMEOUT,
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            users = data.get("users", [])
+            return len(users) > 0
         return None
 
     def _search_profiles(self, username: str) -> list[dict]:
