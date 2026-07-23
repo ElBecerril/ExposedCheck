@@ -136,14 +136,18 @@ python main.py --find-email mi_usuario
 # Fingerprint OSINT completo de un email
 python main.py --fingerprint correo@ejemplo.com
 
-# Guardar los resultados en JSON (ademas de mostrarlos en consola)
+# Guardar los resultados en JSON y/o HTML (ademas de mostrarlos en consola)
 python main.py -e correo@ejemplo.com -u mi_usuario --json resultado.json
+python main.py --fingerprint correo@ejemplo.com --html reporte.html
 ```
 
-El JSON incluye metadata (`tool`, `version`, `generated_at`) y un bloque
+`--json` y `--html` se pueden combinar y sirven para cualquier check. El
+JSON incluye metadata (`tool`, `version`, `generated_at`) y un bloque
 `results` por tipo de check. Los reportes de brechas traen el nivel de
 riesgo calculado (`overall_risk`), incluido `"desconocido"` cuando ninguna
 fuente respondio (no se confunde "sin brechas" con "no se pudo consultar").
+El HTML es una pagina autocontenida (sin recursos externos) con el mismo
+contenido y un badge de riesgo por seccion.
 
 ## Ejemplo de salida
 

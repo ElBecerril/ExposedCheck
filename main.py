@@ -116,6 +116,11 @@ Ejemplos:
         metavar="ARCHIVO",
         help="Guardar los resultados en un archivo JSON (ademas de mostrarlos)",
     )
+    parser.add_argument(
+        "--html",
+        metavar="ARCHIVO",
+        help="Guardar los resultados en una pagina HTML (ademas de mostrarlos)",
+    )
 
     return parser.parse_args()
 
@@ -499,17 +504,23 @@ def cli_mode(args: argparse.Namespace) -> None:
         console.rule("[bold]Guia de Remediacion y Eliminacion de Datos[/bold]")
         remediation.print_guide(combined)
 
-    # --- Export JSON opcional ---
-    if args.json:
-        if json_results:
-            from reporting.export import export_json
-            try:
-                export_json(json_results, args.json)
-                console.print(f"\n[green]Resultados guardados en:[/green] {args.json}")
-            except OSError as e:
-                console.print(f"\n[red]No se pudo escribir el JSON en {args.json}: {e}[/red]")
+    # --- Export opcional (JSON / HTML) ---
+    if args.json or args.html:
+        if not json_results:
+            console.print("\n[yellow]--json/--html: no se ejecuto ningun check, no hay nada que guardar.[/yellow]")
         else:
-            console.print("\n[yellow]--json: no se ejecuto ningun check, no hay nada que guardar.[/yellow]")
+            from reporting.export import export_json, export_html
+            for fmt, path, fn in (
+                ("JSON", args.json, export_json),
+                ("HTML", args.html, export_html),
+            ):
+                if not path:
+                    continue
+                try:
+                    fn(json_results, path)
+                    console.print(f"\n[green]Resultados {fmt} guardados en:[/green] {path}")
+                except OSError as e:
+                    console.print(f"\n[red]No se pudo escribir el {fmt} en {path}: {e}[/red]")
 
     console.print()
 
