@@ -45,10 +45,13 @@ class ConsoleReporter:
         type_labels = {"email": "Email", "username": "Username", "phone": "Telefono"}
         query_label = type_labels.get(report.query_type, report.query_type)
 
-        summary_lines = [
-            f"[bold]{query_label}:[/bold] {report.query}",
-            f"[bold]Brechas encontradas:[/bold] {report.total_breaches}",
-        ]
+        summary_lines = [f"[bold]{query_label}:[/bold] {report.query}"]
+
+        if report.has_coverage:
+            summary_lines.append(f"[bold]Brechas encontradas:[/bold] {report.total_breaches}")
+        else:
+            # Sin fuentes consultadas, "0 brechas" seria enganoso.
+            summary_lines.append("[bold]Brechas encontradas:[/bold] sin datos")
         if report.has_infostealers:
             summary_lines.append(
                 f"[bold red]Infostealers detectados:[/bold red] {len(report.infostealers)}"
@@ -57,12 +60,22 @@ class ConsoleReporter:
             pw = report.password_result
             if pw.is_compromised:
                 summary_lines.append("[bold red]Password: COMPROMETIDO[/bold red]")
+            elif not pw.has_coverage:
+                summary_lines.append("[bold yellow]Password: no se pudo verificar[/bold yellow]")
             else:
                 summary_lines.append("[bold green]Password: No encontrado en brechas[/bold green]")
 
+        summary_lines.append(self._coverage_line(report))
         summary_text = "\n".join(summary_lines)
 
-        risk_display = f"[bold {risk_cfg['color']}]{risk_cfg['icon']} RIESGO {risk.upper()}[/bold {risk_cfg['color']}]"
+        if risk == "desconocido":
+            risk_display = (
+                f"[bold {risk_cfg['color']}]{risk_cfg['icon']} RESULTADO NO CONCLUYENTE"
+                f"[/bold {risk_cfg['color']}]\n"
+                "[dim]Ninguna fuente respondio: esto NO significa que estes limpio.[/dim]"
+            )
+        else:
+            risk_display = f"[bold {risk_cfg['color']}]{risk_cfg['icon']} RIESGO {risk.upper()}[/bold {risk_cfg['color']}]"
 
         panel = Panel(
             f"{summary_text}\n\n{risk_display}",
@@ -72,6 +85,21 @@ class ConsoleReporter:
             padding=(1, 2),
         )
         console.print(panel)
+
+    def _coverage_line(self, report: CheckReport) -> str:
+        """Linea que declara que fuentes se consultaron realmente."""
+        total = len(report.sources_ok) + len(report.sources_failed)
+        if total == 0:
+            return "[dim]Fuentes consultadas: ninguna[/dim]"
+
+        ok = ", ".join(report.sources_ok) if report.sources_ok else "ninguna"
+        line = f"[bold]Fuentes consultadas:[/bold] {len(report.sources_ok)}/{total} ({ok})"
+        if report.sources_failed:
+            line += f"\n[yellow]Sin respuesta:[/yellow] {', '.join(report.sources_failed)}"
+            # "Parcial" solo aplica si ademas hubo alguna fuente que si respondio.
+            if report.is_partial:
+                line += " [dim](cobertura parcial)[/dim]"
+        return line
 
     def _print_breaches_table(self, report: CheckReport) -> None:
         """Tabla de brechas encontradas."""
@@ -149,8 +177,20 @@ class ConsoleReporter:
                 lines.append("  XposedOrNot: encontrado en brechas")
             lines.append("\n[bold]Debes cambiar este password inmediatamente.[/bold]")
             panel_style = "red"
+        elif not pw.has_coverage:
+            # Ninguna fuente respondio: no se puede afirmar que este limpio.
+            lines = [
+                "[bold yellow]No se pudo verificar este password.[/bold yellow]",
+                f"Fuentes sin respuesta: {', '.join(pw.sources_failed) or 'todas'}.",
+                "[bold]Esto NO significa que el password sea seguro.[/bold] Vuelve a intentar.",
+            ]
+            panel_style = "yellow"
         else:
             lines = ["[bold green]Este password NO aparece en brechas conocidas.[/bold green]"]
+            if pw.sources_failed:
+                lines.append(
+                    f"[yellow]Cobertura parcial: {', '.join(pw.sources_failed)} no respondio.[/yellow]"
+                )
             lines.append("Sin embargo, esto no garantiza que sea seguro.")
             panel_style = "green"
 

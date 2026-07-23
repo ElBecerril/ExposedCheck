@@ -72,6 +72,12 @@ class XposedOrNotAPI(BaseAPI):
             resp = self._get(f"{XPOSEDORNOT_PASSWORD_URL}/{prefix}")
 
             if resp.status_code == 404:
+                # 404 = prefijo sin coincidencias: es una respuesta valida.
+                result.record_source("XposedOrNot")
+                return result
+
+            if resp.status_code != 200:
+                result.record_source("XposedOrNot", error=f"XposedOrNot: HTTP {resp.status_code}")
                 return result
 
             if resp.status_code == 200:
@@ -87,9 +93,12 @@ class XposedOrNotAPI(BaseAPI):
                         result.xon_count = 1
                         result.is_compromised = True
                         break
+                result.record_source("XposedOrNot")
 
-        except Exception:
-            pass  # Password check es best-effort
+        except Exception as e:
+            # Registrar el fallo: sin esto, un error de red se vería como
+            # "password no encontrado en brechas".
+            result.record_source("XposedOrNot", error=f"XposedOrNot: {e}")
 
         return result
 

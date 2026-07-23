@@ -22,15 +22,13 @@ class UsernameChecker:
         # 1. Hudson Rock (primario para username)
         with console.status("[bold blue]Consultando Hudson Rock..."):
             hr_result = self.hudson.check(username, query_type="username")
-            if hr_result.get("error"):
-                report.errors.append(hr_result["error"])
+            report.record_source("Hudson Rock", hr_result.get("error"))
             report.infostealers.extend(hr_result.get("infostealers", []))
 
         # 2. LeakCheck
         with console.status("[bold blue]Consultando LeakCheck..."):
             lc_result = self.leakcheck.check(username, query_type="username")
-            if lc_result.get("error"):
-                report.errors.append(lc_result["error"])
+            report.record_source("LeakCheck", lc_result.get("error"))
             report.breaches.extend(lc_result.get("breaches", []))
 
         return report

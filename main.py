@@ -502,6 +502,13 @@ def _merge_reports(reports: list):
         combined.breaches.extend(r.breaches)
         combined.infostealers.extend(r.infostealers)
         combined.errors.extend(r.errors)
+        # Sin arrastrar las fuentes, el reporte combinado se veria "sin cobertura".
+        for name in r.sources_ok:
+            if name not in combined.sources_ok:
+                combined.sources_ok.append(name)
+        for name in r.sources_failed:
+            if name not in combined.sources_failed:
+                combined.sources_failed.append(name)
         if r.password_result and not combined.password_result:
             combined.password_result = r.password_result
     return combined

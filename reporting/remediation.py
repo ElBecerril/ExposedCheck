@@ -61,8 +61,37 @@ class RemediationGuide:
     def print_guide(self, report: CheckReport) -> None:
         """Imprime guia de remediacion completa."""
         if report.total_breaches == 0 and not report.has_infostealers:
+            if not report.has_coverage:
+                # Ninguna fuente respondio: no hay conclusion que dar.
+                detail = ""
+                if report.sources_failed:
+                    detail = f"\nFuentes sin respuesta: {', '.join(report.sources_failed)}.\n"
+                console.print(Panel(
+                    "[yellow]No se pudo consultar ninguna fuente, asi que esta verificacion "
+                    "no concluye nada.[/yellow]\n"
+                    f"{detail}"
+                    "[bold]Ausencia de resultados no es ausencia de brechas.[/bold]\n\n"
+                    "[bold]Que hacer:[/bold]\n"
+                    "- Revisa las advertencias de arriba (falta de API key, limite de "
+                    "consultas o problema de red)\n"
+                    "- Configura las API keys que falten en tu archivo .env\n"
+                    "- Vuelve a intentar antes de dar por buenos estos datos",
+                    title="[bold yellow]Verificacion no concluyente[/bold yellow]",
+                    border_style="yellow",
+                ))
+                return
+
+            partial_note = ""
+            if report.is_partial:
+                partial_note = (
+                    f"\n[yellow]Cobertura parcial: {', '.join(report.sources_failed)} no "
+                    "respondio, asi que podrian faltar hallazgos.[/yellow]\n"
+                )
+
             console.print(Panel(
-                "[green]No se encontraron brechas. Tus datos no aparecen en las bases consultadas.[/green]\n\n"
+                "[green]No se encontraron brechas en las fuentes que si respondieron "
+                f"({', '.join(report.sources_ok)}).[/green]\n"
+                f"{partial_note}\n"
                 "[bold]Recomendaciones preventivas:[/bold]\n"
                 "- Usa un gestor de passwords (Bitwarden, KeePass)\n"
                 "- Activa autenticacion de dos factores (2FA) en todas tus cuentas\n"

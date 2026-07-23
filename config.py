@@ -37,4 +37,6 @@ RISK_LEVELS = {
     "medio": {"color": "yellow", "icon": "!"},
     "bajo": {"color": "green", "icon": "~"},
     "limpio": {"color": "bright_green", "icon": "OK"},
+    # Ninguna fuente respondio: no se puede afirmar nada sobre el riesgo.
+    "desconocido": {"color": "bright_black", "icon": "??"},
 }

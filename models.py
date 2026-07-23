@@ -33,6 +33,20 @@ class PasswordResult:
     hibp_count: int = 0
     xon_count: int = 0
     is_compromised: bool = False
+    sources_ok: list[str] = field(default_factory=list)
+    sources_failed: list[str] = field(default_factory=list)
+
+    def record_source(self, name: str, error: Optional[str] = None) -> None:
+        """Registra el resultado de consultar una fuente."""
+        if error:
+            self.sources_failed.append(name)
+        else:
+            self.sources_ok.append(name)
+
+    @property
+    def has_coverage(self) -> bool:
+        """True si al menos una fuente respondio."""
+        return len(self.sources_ok) > 0
 
 
 @dataclass
@@ -44,6 +58,19 @@ class CheckReport:
     infostealers: list[InfostealerDetail] = field(default_factory=list)
     password_result: Optional[PasswordResult] = None
     errors: list[str] = field(default_factory=list)
+    # Fuentes que respondieron correctamente y fuentes que fallaron o se
+    # omitieron (sin API key, rate limit, timeout). Sin esto no se puede
+    # distinguir "no hay brechas" de "no se pudo consultar nada".
+    sources_ok: list[str] = field(default_factory=list)
+    sources_failed: list[str] = field(default_factory=list)
+
+    def record_source(self, name: str, error: Optional[str] = None) -> None:
+        """Registra el resultado de consultar una fuente."""
+        if error:
+            self.sources_failed.append(name)
+            self.errors.append(error)
+        else:
+            self.sources_ok.append(name)
 
     @property
     def total_breaches(self) -> int:
@@ -54,6 +81,16 @@ class CheckReport:
         return len(self.infostealers) > 0
 
     @property
+    def has_coverage(self) -> bool:
+        """True si al menos una fuente respondio."""
+        return len(self.sources_ok) > 0
+
+    @property
+    def is_partial(self) -> bool:
+        """True si alguna fuente respondio pero otras fallaron."""
+        return self.has_coverage and len(self.sources_failed) > 0
+
+    @property
     def overall_risk(self) -> str:
         if self.has_infostealers:
             return "critico"
@@ -61,6 +98,9 @@ class CheckReport:
             return "alto"
         if self.total_breaches >= 1:
             return "medio"
+        # Cero hallazgos solo significa "limpio" si alguien contesto.
+        if not self.has_coverage:
+            return "desconocido"
         return "limpio"
 
 

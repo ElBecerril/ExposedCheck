@@ -17,18 +17,18 @@ class PhoneChecker:
         report = CheckReport(query=phone, query_type="phone")
 
         if not BREACHDIRECTORY_API_KEY:
-            report.errors.append(
-                "No se configuro BREACHDIRECTORY_API_KEY en .env. "
+            report.record_source(
+                "BreachDirectory",
+                error="No se configuro BREACHDIRECTORY_API_KEY en .env. "
                 "La verificacion de telefono requiere una API key gratuita de RapidAPI. "
-                "Registrate en: https://rapidapi.com/rohan-patra/api/breachdirectory"
+                "Registrate en: https://rapidapi.com/rohan-patra/api/breachdirectory",
             )
             return report
 
         with console.status("[bold blue]Consultando BreachDirectory..."):
             bd = BreachDirectoryAPI()
             bd_result = bd.check(phone)
-            if bd_result.get("error"):
-                report.errors.append(bd_result["error"])
+            report.record_source("BreachDirectory", bd_result.get("error"))
             report.breaches.extend(bd_result.get("breaches", []))
 
         return report

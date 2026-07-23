@@ -207,6 +207,17 @@ ExposedCheck/
 - [python-dotenv](https://pypi.org/project/python-dotenv/) - Carga de variables de entorno
 - [dnspython](https://pypi.org/project/dnspython/) - Resolucion MX para fingerprint (opcional, fallback a socket)
 
+## Tests
+
+```bash
+pip install -r requirements-dev.txt
+pytest
+```
+
+Cubren la logica de cobertura de fuentes (distinguir "sin brechas" de "no
+se pudo consultar") y el parsing de respuestas de los password providers.
+No tocan la red (los providers se mockean).
+
 ## Privacidad
 
 - Los passwords se verifican usando **k-anonymity**: solo se envian los primeros caracteres del hash, nunca el password completo

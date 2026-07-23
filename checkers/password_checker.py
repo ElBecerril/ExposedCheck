@@ -23,11 +23,15 @@ class PasswordChecker:
         with console.status("[bold blue]Verificando password en HIBP..."):
             hibp_result = self.hibp.check_password(password)
             combined.hibp_count = hibp_result.hibp_count
+            combined.sources_ok.extend(hibp_result.sources_ok)
+            combined.sources_failed.extend(hibp_result.sources_failed)
 
         # 2. XposedOrNot Passwords
         with console.status("[bold blue]Verificando password en XposedOrNot..."):
             xon_result = self.xon.check_password(password)
             combined.xon_count = xon_result.xon_count
+            combined.sources_ok.extend(xon_result.sources_ok)
+            combined.sources_failed.extend(xon_result.sources_failed)
 
         combined.is_compromised = combined.hibp_count > 0 or combined.xon_count > 0
         return combined

@@ -37,8 +37,13 @@ class HIBPPasswordsAPI(BaseAPI):
                         result.hibp_count = int(parts[1].strip())
                         result.is_compromised = True
                         break
+                result.record_source("HIBP")
+            else:
+                result.record_source("HIBP", error=f"HIBP: HTTP {resp.status_code}")
 
-        except Exception:
-            pass  # Password check es best-effort
+        except Exception as e:
+            # Registrar el fallo: sin esto, un error de red se vería como
+            # "password no encontrado en brechas".
+            result.record_source("HIBP", error=f"HIBP: {e}")
 
         return result
