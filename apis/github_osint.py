@@ -1,6 +1,6 @@
 """GitHub API - Extraccion de emails publicos desde perfiles y commits."""
 
-from config import GITHUB_API_URL
+from config import GITHUB_API_URL, GITHUB_TOKEN
 from .base import BaseAPI
 
 
@@ -8,6 +8,12 @@ class GitHubOsintAPI(BaseAPI):
     """Busca emails asociados a un username en GitHub."""
 
     name = "GitHub"
+
+    def _auth_headers(self) -> dict:
+        """Cabeceras de autenticacion. Vacio si no hay GITHUB_TOKEN (comportamiento sin cambios)."""
+        if GITHUB_TOKEN:
+            return {"Authorization": f"Bearer {GITHUB_TOKEN}"}
+        return {}
 
     def check(self, username: str) -> dict:
         """Busca emails en perfil publico, commits de repos y eventos.
@@ -20,15 +26,22 @@ class GitHubOsintAPI(BaseAPI):
         """
         result = {"emails": [], "error": None}
         found_emails = set()
+        headers = self._auth_headers()
 
         try:
             # 1. Perfil publico
-            resp = self._get(f"{GITHUB_API_URL}/users/{username}")
+            resp = self._get(f"{GITHUB_API_URL}/users/{username}", headers=headers)
             if resp.status_code == 404:
                 result["error"] = "GitHub: usuario no encontrado"
                 return result
+            if resp.status_code == 401:
+                result["error"] = "GitHub: GITHUB_TOKEN invalido o expirado"
+                return result
             if resp.status_code == 403:
-                result["error"] = "GitHub: rate limit alcanzado (60 req/hr sin API key)"
+                if GITHUB_TOKEN:
+                    result["error"] = "GitHub: rate limit alcanzado (403) pese a usar API key"
+                else:
+                    result["error"] = "GitHub: rate limit alcanzado (60 req/hr sin API key)"
                 return result
             if resp.status_code != 200:
                 result["error"] = f"GitHub: HTTP {resp.status_code}"
@@ -42,6 +55,7 @@ class GitHubOsintAPI(BaseAPI):
             repos_resp = self._get(
                 f"{GITHUB_API_URL}/users/{username}/repos",
                 params={"sort": "pushed", "per_page": 5},
+                headers=headers,
             )
             if repos_resp.status_code == 200:
                 repos = repos_resp.json()
@@ -49,6 +63,7 @@ class GitHubOsintAPI(BaseAPI):
                     commits_resp = self._get(
                         f"{GITHUB_API_URL}/repos/{username}/{repo['name']}/commits",
                         params={"author": username, "per_page": 5},
+                        headers=headers,
                     )
                     if commits_resp.status_code == 200:
                         commits = commits_resp.json()
@@ -63,6 +78,7 @@ class GitHubOsintAPI(BaseAPI):
             events_resp = self._get(
                 f"{GITHUB_API_URL}/users/{username}/events/public",
                 params={"per_page": 10},
+                headers=headers,
             )
             if events_resp.status_code == 200:
                 events = events_resp.json()

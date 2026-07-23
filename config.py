@@ -25,9 +25,21 @@ HUDSONROCK_USERNAME_URL = "https://cavalier.hudsonrock.com/api/json/v2/osint-too
 GITHUB_API_URL = "https://api.github.com"
 GITLAB_API_URL = "https://gitlab.com/api/v4"
 
+HIBP_BREACH_URL = "https://haveibeenpwned.com/api/v3/breachedaccount"
+
 # --- API Keys opcionales ---
 
 BREACHDIRECTORY_API_KEY = os.getenv("BREACHDIRECTORY_API_KEY", "")
+
+# GitHub: sin token, 60 req/hr; con Personal Access Token, 5000 req/hr.
+# No requiere scopes especiales (solo lectura de datos publicos).
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
+
+# HIBP: la busqueda de brechas por email (breachedaccount) requiere API key
+# de pago (https://haveibeenpwned.com/API/Key). Sin ella, ese endpoint
+# siempre responde 401. El chequeo de passwords (Pwned Passwords) es
+# publico y NUNCA usa esta key.
+HIBP_API_KEY = os.getenv("HIBP_API_KEY", "")
 
 # --- Configuracion HTTP ---
 
