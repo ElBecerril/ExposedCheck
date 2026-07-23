@@ -74,12 +74,23 @@ python main.py
 ```
 </details>
 
-Para verificacion de telefono (opcional), crea un archivo `.env` basado en `.env.example`:
+Las API keys son **todas opcionales**: sin ninguna, la herramienta funciona con
+fuentes publicas. Crea un `.env` basado en `.env.example` para habilitar extras:
 
 ```bash
 cp .env.example .env
-# Edita .env con tu API key de RapidAPI
+# Edita .env con las keys que tengas
 ```
+
+| Variable | Para que sirve | Sin ella |
+|---|---|---|
+| `BREACHDIRECTORY_API_KEY` | Verificacion de telefono (RapidAPI) | El check de telefono no consulta esa fuente |
+| `GITHUB_TOKEN` | Sube el rate limit del OSINT de GitHub de 60 a 5000 req/hr | Funciona igual, pero se agota antes |
+| `HIBP_API_KEY` | Anade HIBP como cuarta fuente de brechas por email (endpoint de pago) | Se consultan 3 fuentes en vez de 4 |
+
+`GITHUB_TOKEN` no necesita scopes especiales (solo lee datos publicos). La
+verificacion de **passwords** usa la API publica de Pwned Passwords con
+k-anonymity y **nunca** usa `HIBP_API_KEY`.
 
 ## Uso
 
@@ -140,14 +151,19 @@ python main.py --fingerprint correo@ejemplo.com
 python main.py -e correo@ejemplo.com -u mi_usuario --json resultado.json
 python main.py --fingerprint correo@ejemplo.com --html reporte.html
 
-# Interfaz TUI (Textual) para verificacion de brechas
+# Interfaz TUI (Textual)
 python main.py --tui
 ```
 
-La **TUI** (`--tui`) ofrece verificacion de brechas (email/username/telefono/
-password) en una interfaz de terminal navegable: eliges el tipo, escribes el
+La **TUI** (`--tui`) cubre los 8 checks en una interfaz de terminal navegable:
+brechas (email/username/telefono/password) y OSINT (perfiles, fingerprint de
+email, busqueda inversa de imagen, email finder). Eliges el tipo, escribes el
 valor y ves el resultado con su nivel de riesgo. Tecla `s` para guardar el
-ultimo resultado en JSON+HTML, `q` para salir.
+ultimo resultado en JSON+HTML pidiendo la ruta, `q` para salir.
+
+Igual que en el CLI, el **fingerprint de email** pide confirmacion explicita
+antes de ejecutarse: consulta endpoints de terceros y solo debe usarse con tu
+propio email o con autorizacion del titular.
 
 `--json` y `--html` se pueden combinar y sirven para cualquier check. El
 JSON incluye metadata (`tool`, `version`, `generated_at`) y un bloque
