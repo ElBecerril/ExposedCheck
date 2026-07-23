@@ -2,6 +2,8 @@
 
 from typing import Callable
 
+from apis.errors import describe_exception
+
 
 def run_provider(fn: Callable, *args, **kwargs) -> dict:
     """Ejecuta la llamada a un provider que devuelve dict, blindando el hilo.
@@ -16,5 +18,5 @@ def run_provider(fn: Callable, *args, **kwargs) -> dict:
         return fn(*args, **kwargs)
     except Exception as e:
         owner = getattr(fn, "__self__", None)
-        label = type(owner).__name__ if owner is not None else "provider"
-        return {"error": f"{label}: {e}"}
+        label = getattr(owner, "name", None) or type(owner).__name__ if owner is not None else "provider"
+        return {"error": describe_exception(label, e)}

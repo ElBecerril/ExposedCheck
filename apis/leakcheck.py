@@ -3,6 +3,7 @@
 from models import BreachDetail
 from config import LEAKCHECK_PUBLIC_URL
 from .base import BaseAPI
+from .errors import describe_exception
 
 
 class LeakCheckAPI(BaseAPI):
@@ -63,6 +64,6 @@ class LeakCheckAPI(BaseAPI):
                 result["error"] = f"LeakCheck: HTTP {resp.status_code}"
 
         except Exception as e:
-            result["error"] = f"LeakCheck: {e}"
+            result["error"] = describe_exception("LeakCheck", e)
 
         return result

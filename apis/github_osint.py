@@ -2,6 +2,7 @@
 
 from config import GITHUB_API_URL, GITHUB_TOKEN
 from .base import BaseAPI
+from .errors import describe_exception
 
 
 class GitHubOsintAPI(BaseAPI):
@@ -91,7 +92,7 @@ class GitHubOsintAPI(BaseAPI):
                                 found_emails.add(email)
 
         except Exception as e:
-            result["error"] = f"GitHub: {e}"
+            result["error"] = describe_exception("GitHub", e)
 
         result["emails"] = list(found_emails)
         return result

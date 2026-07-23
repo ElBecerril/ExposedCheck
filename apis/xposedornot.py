@@ -5,6 +5,7 @@ import hashlib
 from models import BreachDetail, PasswordResult
 from config import XPOSEDORNOT_BREACH_URL, XPOSEDORNOT_PASSWORD_URL
 from .base import BaseAPI
+from .errors import describe_exception
 
 
 class XposedOrNotAPI(BaseAPI):
@@ -58,7 +59,7 @@ class XposedOrNotAPI(BaseAPI):
                 result["breaches"].append(breach)
 
         except Exception as e:
-            result["error"] = f"XposedOrNot: {e}"
+            result["error"] = describe_exception("XposedOrNot", e)
 
         return result
 
@@ -98,7 +99,7 @@ class XposedOrNotAPI(BaseAPI):
         except Exception as e:
             # Registrar el fallo: sin esto, un error de red se vería como
             # "password no encontrado en brechas".
-            result.record_source("XposedOrNot", error=f"XposedOrNot: {e}")
+            result.record_source("XposedOrNot", error=describe_exception("XposedOrNot", e))
 
         return result
 

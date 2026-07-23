@@ -32,7 +32,13 @@ def _capture_get(monkeypatch, api, resp_by_url=None, default_resp=None):
         calls.append({"url": url, "params": params, "headers": headers or {}})
         if resp_by_url and url in resp_by_url:
             return resp_by_url[url]
-        return default_resp if default_resp is not None else FakeResp(200)
+        if default_resp is not None:
+            return default_resp
+        # Los endpoints de coleccion devuelven listas en la API real: usar
+        # un dict aquí escondia KeyError/AttributeError en el parser.
+        if url.endswith(("/repos", "/events/public")) or "/commits" in url:
+            return FakeResp(200, json_data=[])
+        return FakeResp(200, json_data={})
 
     monkeypatch.setattr(api, "_get", fake_get)
     return calls
@@ -44,7 +50,7 @@ def _capture_get(monkeypatch, api, resp_by_url=None, default_resp=None):
 def test_github_con_token_manda_authorization_bearer(monkeypatch):
     monkeypatch.setattr(github_osint, "GITHUB_TOKEN", "gh_faketoken123")
     api = GitHubOsintAPI()
-    calls = _capture_get(monkeypatch, api, default_resp=FakeResp(200, json_data={}))
+    calls = _capture_get(monkeypatch, api)
 
     api.check("alguien")
 
@@ -56,7 +62,7 @@ def test_github_con_token_manda_authorization_bearer(monkeypatch):
 def test_github_sin_token_no_manda_authorization(monkeypatch):
     monkeypatch.setattr(github_osint, "GITHUB_TOKEN", "")
     api = GitHubOsintAPI()
-    calls = _capture_get(monkeypatch, api, default_resp=FakeResp(200, json_data={}))
+    calls = _capture_get(monkeypatch, api)
 
     api.check("alguien")
 

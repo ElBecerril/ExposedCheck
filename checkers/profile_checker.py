@@ -10,6 +10,7 @@ from rich import box
 
 from config import REQUEST_TIMEOUT, USER_AGENT
 from models import ProfileHit, ProfileReport
+from apis.errors import describe_exception
 
 console = Console()
 
@@ -97,7 +98,7 @@ def _check_platform(platform_name: str, url: str, method: str) -> ProfileHit:
     except requests.exceptions.ConnectionError:
         hit.error = "conexion fallida"
     except Exception as e:
-        hit.error = str(e)[:50]
+        hit.error = describe_exception(hit.platform, e)[:120]
 
     return hit
 

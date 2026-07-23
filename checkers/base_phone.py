@@ -4,6 +4,7 @@ import requests
 
 from models import BreachDetail
 from config import BREACHDIRECTORY_API_KEY, REQUEST_TIMEOUT
+from apis.errors import describe_exception
 
 
 class BreachDirectoryAPI:
@@ -53,6 +54,6 @@ class BreachDirectoryAPI:
                 result["error"] = f"BreachDirectory: HTTP {resp.status_code}"
 
         except Exception as e:
-            result["error"] = f"BreachDirectory: {e}"
+            result["error"] = describe_exception("BreachDirectory", e)
 
         return result

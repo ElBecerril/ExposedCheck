@@ -2,6 +2,7 @@
 
 from config import GITLAB_API_URL
 from .base import BaseAPI
+from .errors import describe_exception
 
 
 class GitLabOsintAPI(BaseAPI):
@@ -54,6 +55,6 @@ class GitLabOsintAPI(BaseAPI):
                         result["emails"].append(detail_email)
 
         except Exception as e:
-            result["error"] = f"GitLab: {e}"
+            result["error"] = describe_exception("GitLab", e)
 
         return result

@@ -251,11 +251,21 @@ ExposedCheck/
 ```bash
 pip install -r requirements-dev.txt
 pytest
+
+# Modo estricto: los bugs internos se relanzan en vez de convertirse en
+# un mensaje de error. Deberia pasar igual de verde.
+EXPOSEDCHECK_STRICT=1 pytest
 ```
 
-Cubren la logica de cobertura de fuentes (distinguir "sin brechas" de "no
-se pudo consultar") y el parsing de respuestas de los password providers.
-No tocan la red (los providers se mockean).
+Cubren la cobertura de fuentes (distinguir "sin brechas" de "no se pudo
+consultar"), el parsing de respuestas de todos los proveedores, los exports
+JSON/HTML y la TUI. No tocan la red (los providers se mockean).
+
+Los fallos se clasifican en tres tipos (`apis/errors.py`): **red** (timeout,
+DNS), **parseo** (la respuesta no es JSON valido) y **bug** (un error nuestro
+procesando la respuesta, que ademas se loguea con traceback). Antes los tres
+se presentaban igual, asi que un bug del parser parecia una caida de la API.
+Con `EXPOSEDCHECK_STRICT=1` los bugs se relanzan para que salten en desarrollo.
 
 ## Privacidad
 

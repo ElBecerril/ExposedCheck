@@ -24,12 +24,28 @@ def test_run_provider_pasa_resultado_normal():
     assert run_provider(P().check, "q") == {"error": None, "breaches": [1]}
 
 
-def test_run_provider_convierte_excepcion_en_error():
+def test_run_provider_convierte_excepcion_en_error(monkeypatch):
+    """Una excepcion inesperada (no de red) es un bug nuestro: se etiqueta
+    como tal en vez de disfrazarse de fallo de la fuente."""
+    monkeypatch.delenv("EXPOSEDCHECK_STRICT", raising=False)
+
     class P:
         def check(self, q):
             raise RuntimeError("boom")
     out = run_provider(P().check, "q")
-    assert out["error"] == "P: boom"
+    assert "error interno" in out["error"]
+    assert "RuntimeError: boom" in out["error"]
+
+
+def test_run_provider_error_de_red_conserva_el_mensaje():
+    """Los fallos de red siguen reportandose tal cual, sin ruido extra."""
+    class P:
+        name = "MiFuente"
+
+        def check(self, q):
+            raise ConnectionError("Connection refused")
+    out = run_provider(P().check, "q")
+    assert out["error"] == "MiFuente: Connection refused"
 
 
 # --- EmailChecker --------------------------------------------------------

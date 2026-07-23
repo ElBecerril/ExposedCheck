@@ -3,6 +3,7 @@
 from models import BreachDetail, InfostealerDetail
 from config import HUDSONROCK_EMAIL_URL, HUDSONROCK_USERNAME_URL
 from .base import BaseAPI
+from .errors import describe_exception
 
 
 class HudsonRockAPI(BaseAPI):
@@ -61,6 +62,6 @@ class HudsonRockAPI(BaseAPI):
                 result["error"] = f"Hudson Rock: HTTP {resp.status_code}"
 
         except Exception as e:
-            result["error"] = f"Hudson Rock: {e}"
+            result["error"] = describe_exception("Hudson Rock", e)
 
         return result

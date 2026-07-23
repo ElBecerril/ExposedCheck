@@ -5,6 +5,7 @@ import hashlib
 from models import BreachDetail, PasswordResult
 from config import HIBP_API_KEY, HIBP_BREACH_URL, HIBP_PASSWORD_URL
 from .base import BaseAPI
+from .errors import describe_exception
 
 
 class HIBPPasswordsAPI(BaseAPI):
@@ -82,7 +83,7 @@ class HIBPPasswordsAPI(BaseAPI):
                 result["error"] = f"HIBP: HTTP {resp.status_code}"
 
         except Exception as e:
-            result["error"] = f"HIBP: {e}"
+            result["error"] = describe_exception("HIBP", e)
 
         return result
 
@@ -114,6 +115,6 @@ class HIBPPasswordsAPI(BaseAPI):
         except Exception as e:
             # Registrar el fallo: sin esto, un error de red se vería como
             # "password no encontrado en brechas".
-            result.record_source("HIBP", error=f"HIBP: {e}")
+            result.record_source("HIBP", error=describe_exception("HIBP", e))
 
         return result
