@@ -180,6 +180,44 @@ def interactive_mode() -> None:
                 break
 
 
+def _offer_export(results: dict) -> None:
+    """Ofrece guardar los resultados de un check interactivo en JSON/HTML."""
+    if not results:
+        return
+    console.print()
+    if not Confirm.ask("[bold]Guardar estos resultados en un archivo?[/bold]", default=False):
+        return
+
+    fmt = Prompt.ask(
+        "[bold]Formato[/bold]", choices=["json", "html", "ambos"], default="json"
+    )
+    path = Prompt.ask("[bold]Ruta del archivo (sin extension)[/bold]").strip().strip('"')
+    if not path:
+        console.print("[yellow]Sin ruta: no se guardo nada.[/yellow]")
+        return
+
+    # Normalizar la base quitando una extension conocida si el usuario la puso.
+    base = path
+    for ext in (".json", ".html"):
+        if base.lower().endswith(ext):
+            base = base[: -len(ext)]
+
+    from reporting.export import export_json, export_html
+    targets = []
+    if fmt in ("json", "ambos"):
+        targets.append((".json", export_json))
+    if fmt in ("html", "ambos"):
+        targets.append((".html", export_html))
+
+    for ext, fn in targets:
+        out = base + ext
+        try:
+            fn(results, out)
+            console.print(f"[green]Guardado en:[/green] {out}")
+        except OSError as e:
+            console.print(f"[red]No se pudo escribir {out}: {e}[/red]")
+
+
 def _interactive_email(reporter: ConsoleReporter, remediation: RemediationGuide) -> None:
     email = Prompt.ask("\n[bold]Introduce tu email[/bold]").strip()
     if not email:
@@ -194,6 +232,8 @@ def _interactive_email(reporter: ConsoleReporter, remediation: RemediationGuide)
     console.print()
     console.rule("[bold]Guia de Remediacion[/bold]")
     remediation.print_guide(report)
+
+    _offer_export({"email": report})
 
 
 def _interactive_username(reporter: ConsoleReporter, remediation: RemediationGuide) -> None:
@@ -211,6 +251,8 @@ def _interactive_username(reporter: ConsoleReporter, remediation: RemediationGui
     console.rule("[bold]Guia de Remediacion[/bold]")
     remediation.print_guide(report)
 
+    _offer_export({"username": report})
+
 
 def _interactive_phone(reporter: ConsoleReporter, remediation: RemediationGuide) -> None:
     console.print("\n[dim]Formato internacional, ejemplo: +521234567890[/dim]")
@@ -227,6 +269,8 @@ def _interactive_phone(reporter: ConsoleReporter, remediation: RemediationGuide)
     console.print()
     console.rule("[bold]Guia de Remediacion[/bold]")
     remediation.print_guide(report)
+
+    _offer_export({"phone": report})
 
 
 def _interactive_password() -> None:
@@ -263,6 +307,8 @@ def _interactive_password() -> None:
             border_style="green",
         ))
 
+    _offer_export({"password": result})
+
 
 def _interactive_image() -> None:
     console.print(Panel(
@@ -289,6 +335,8 @@ def _interactive_image() -> None:
     results = checker.check(path, auto_open=True)
     checker.print_results(results)
 
+    _offer_export({"image": results})
+
 
 def _interactive_profiles() -> None:
     username = Prompt.ask("\n[bold]Introduce el nombre de usuario a buscar[/bold]").strip()
@@ -300,6 +348,8 @@ def _interactive_profiles() -> None:
     checker = ProfileChecker()
     results = checker.check(username)
     checker.print_results(results)
+
+    _offer_export({"profiles": results})
 
 
 def _interactive_email_finder() -> None:
@@ -322,6 +372,8 @@ def _interactive_email_finder() -> None:
     finder = EmailFinder()
     result = finder.check(username)
     finder.print_results(result)
+
+    _offer_export({"email_finder": result})
 
 
 def _interactive_fingerprint() -> None:
@@ -363,6 +415,8 @@ def _interactive_fingerprint() -> None:
     result = fp.fingerprint(email)
     fp.print_results(result)
 
+    _offer_export({"fingerprint": result})
+
 
 def _interactive_full(reporter: ConsoleReporter, remediation: RemediationGuide) -> None:
     """Verificacion completa: email + username + password."""
@@ -381,6 +435,7 @@ def _interactive_full(reporter: ConsoleReporter, remediation: RemediationGuide) 
         return
 
     all_reports = []
+    export_results = {}
 
     if email:
         console.rule(f"[bold]Verificando email: {email}[/bold]")
@@ -395,6 +450,7 @@ def _interactive_full(reporter: ConsoleReporter, remediation: RemediationGuide) 
 
         reporter.print_report(report)
         all_reports.append(report)
+        export_results["email"] = report
 
     if username:
         console.rule(f"[bold]Verificando username: {username}[/bold]")
@@ -402,12 +458,15 @@ def _interactive_full(reporter: ConsoleReporter, remediation: RemediationGuide) 
         report = checker.check(username)
         reporter.print_report(report)
         all_reports.append(report)
+        export_results["username"] = report
 
     combined = _merge_reports(all_reports)
     if combined:
         console.print()
         console.rule("[bold]Guia de Remediacion y Eliminacion de Datos[/bold]")
         remediation.print_guide(combined)
+
+    _offer_export(export_results)
 
 
 # ---------------------------------------------------------------------------

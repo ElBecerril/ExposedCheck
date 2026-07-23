@@ -147,7 +147,9 @@ JSON incluye metadata (`tool`, `version`, `generated_at`) y un bloque
 riesgo calculado (`overall_risk`), incluido `"desconocido"` cuando ninguna
 fuente respondio (no se confunde "sin brechas" con "no se pudo consultar").
 El HTML es una pagina autocontenida (sin recursos externos) con el mismo
-contenido y un badge de riesgo por seccion.
+contenido y un badge de riesgo por seccion. En el **modo interactivo**, tras
+cada verificacion se ofrece guardar el resultado (JSON, HTML o ambos) sin
+necesidad de estos flags.
 
 ## Ejemplo de salida
 

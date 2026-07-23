@@ -66,6 +66,7 @@ _SECTION_LABELS = {
     "email": "Email",
     "username": "Username",
     "phone": "Telefono",
+    "password": "Password",
     "image": "Busqueda inversa de imagenes",
     "profiles": "Perfiles",
     "fingerprint": "Fingerprint de email",
