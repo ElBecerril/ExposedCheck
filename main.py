@@ -121,6 +121,11 @@ Ejemplos:
         metavar="ARCHIVO",
         help="Guardar los resultados en una pagina HTML (ademas de mostrarlos)",
     )
+    parser.add_argument(
+        "--tui",
+        action="store_true",
+        help="Lanzar la interfaz TUI (Textual) para verificacion de brechas",
+    )
 
     return parser.parse_args()
 
@@ -613,6 +618,18 @@ def _merge_reports(reports: list):
 if __name__ == "__main__":
     try:
         args = parse_args()
+
+        if args.tui:
+            try:
+                from tui import run_tui
+            except ImportError:
+                console.print(
+                    "[red]La TUI requiere 'textual'.[/red] Instalalo con: "
+                    "[bold]pip install textual[/bold]"
+                )
+                sys.exit(1)
+            run_tui()
+            sys.exit(0)
 
         # Si no se paso ningun argumento, modo interactivo
         has_any = (

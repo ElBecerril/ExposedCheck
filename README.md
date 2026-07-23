@@ -139,7 +139,15 @@ python main.py --fingerprint correo@ejemplo.com
 # Guardar los resultados en JSON y/o HTML (ademas de mostrarlos en consola)
 python main.py -e correo@ejemplo.com -u mi_usuario --json resultado.json
 python main.py --fingerprint correo@ejemplo.com --html reporte.html
+
+# Interfaz TUI (Textual) para verificacion de brechas
+python main.py --tui
 ```
+
+La **TUI** (`--tui`) ofrece verificacion de brechas (email/username/telefono/
+password) en una interfaz de terminal navegable: eliges el tipo, escribes el
+valor y ves el resultado con su nivel de riesgo. Tecla `s` para guardar el
+ultimo resultado en JSON+HTML, `q` para salir.
 
 `--json` y `--html` se pueden combinar y sirven para cualquier check. El
 JSON incluye metadata (`tool`, `version`, `generated_at`) y un bloque
@@ -220,6 +228,7 @@ ExposedCheck/
 - [rich](https://pypi.org/project/rich/) - Interfaz visual en terminal
 - [python-dotenv](https://pypi.org/project/python-dotenv/) - Carga de variables de entorno
 - [dnspython](https://pypi.org/project/dnspython/) - Resolucion MX para fingerprint (opcional, fallback a socket)
+- [textual](https://pypi.org/project/textual/) - Interfaz TUI (`--tui`)
 
 ## Tests
 
