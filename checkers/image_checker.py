@@ -12,6 +12,7 @@ from rich.table import Table
 from rich import box
 
 from config import REQUEST_TIMEOUT
+from models import ImageCheckReport, ImageSearchResult
 
 console = Console()
 
@@ -69,7 +70,7 @@ def _get_images_from_path(path: str) -> list[str]:
 class ImageChecker:
     """Busqueda inversa de imagenes para detectar uso no autorizado."""
 
-    def check(self, path: str, auto_open: bool = True) -> dict:
+    def check(self, path: str, auto_open: bool = True) -> ImageCheckReport:
         """Procesa imagenes y abre busquedas inversas.
 
         Args:
@@ -77,82 +78,69 @@ class ImageChecker:
             auto_open: Si True, abre las URLs en el navegador automaticamente.
 
         Returns:
-            Dict con resultados por imagen.
+            ImageCheckReport con resultados por imagen.
         """
-        results = {"images": [], "errors": []}
+        report = ImageCheckReport()
 
         # Determinar si es URL o archivo/carpeta local
         if path.startswith("http://") or path.startswith("https://"):
-            results["images"].append(self._process_url(path, auto_open))
-            return results
+            report.images.append(self._process_url(path, auto_open))
+            return report
 
         images = _get_images_from_path(path)
         if not images:
-            results["errors"].append(f"No se encontraron imagenes en: {path}")
-            return results
+            report.errors.append(f"No se encontraron imagenes en: {path}")
+            return report
 
         console.print(f"\n[bold]Encontradas {len(images)} imagenes para verificar[/bold]\n")
 
         for img_path in images:
-            result = self._process_local(img_path, auto_open)
-            results["images"].append(result)
+            report.images.append(self._process_local(img_path, auto_open))
 
-        return results
+        return report
 
-    def _process_url(self, url: str, auto_open: bool) -> dict:
+    def _process_url(self, url: str, auto_open: bool) -> ImageSearchResult:
         """Procesa una URL de imagen directamente."""
         search_urls = _build_search_urls(url)
-        result = {
-            "source": url,
-            "type": "url",
-            "search_urls": search_urls,
-            "opened": False,
-        }
+        result = ImageSearchResult(source=url, type="url", search_urls=search_urls)
 
         if auto_open:
             for engine, search_url in search_urls.items():
                 webbrowser.open(search_url)
-            result["opened"] = True
+            result.opened = True
 
         return result
 
-    def _process_local(self, file_path: str, auto_open: bool) -> dict:
+    def _process_local(self, file_path: str, auto_open: bool) -> ImageSearchResult:
         """Sube una imagen local temporalmente y genera busquedas."""
         filename = os.path.basename(file_path)
-        result = {
-            "source": file_path,
-            "type": "local",
-            "search_urls": {},
-            "temp_url": None,
-            "opened": False,
-        }
+        result = ImageSearchResult(source=file_path, type="local")
 
         with console.status(f"[bold blue]Subiendo {filename} (temporal, expira en 1h)..."):
             temp_url = _upload_temp(file_path)
 
         if not temp_url:
-            result["error"] = f"No se pudo subir {filename}"
+            result.error = f"No se pudo subir {filename}"
             return result
 
-        result["temp_url"] = temp_url
-        search_urls = _build_search_urls(temp_url)
-        result["search_urls"] = search_urls
+        result.temp_url = temp_url
+        result.search_urls = _build_search_urls(temp_url)
 
         if auto_open:
-            for engine, search_url in search_urls.items():
+            for engine, search_url in result.search_urls.items():
                 webbrowser.open(search_url)
-            result["opened"] = True
+            result.opened = True
 
         return result
 
-    def print_results(self, results: dict) -> None:
+    def print_results(self, report: ImageCheckReport) -> None:
         """Imprime resumen de busquedas realizadas."""
-        if results["errors"]:
-            for err in results["errors"]:
+        if report.errors:
+            for err in report.errors:
                 console.print(f"[red]{err}[/red]")
             return
 
-        any_opened = any(img.get("opened") for img in results["images"])
+        any_opened = any(img.opened for img in report.images)
 
         if any_opened:
             # Modo navegador: tabla resumida
@@ -165,25 +153,25 @@ class ImageChecker:
             table.add_column("Estado", max_width=20)
             table.add_column("Motores", max_width=30)
 
-            for img in results["images"]:
-                source = os.path.basename(img["source"]) if img["type"] == "local" else img["source"][:50]
-                if img.get("error"):
-                    table.add_row(source, "[red]Error[/red]", img["error"])
+            for img in report.images:
+                source = os.path.basename(img.source) if img.type == "local" else img.source[:50]
+                if img.error:
+                    table.add_row(source, "[red]Error[/red]", img.error)
                 else:
-                    engines = ", ".join(img["search_urls"].keys())
+                    engines = ", ".join(img.search_urls.keys())
                     table.add_row(source, "[green]Abierto en navegador[/green]", engines)
 
             console.print(table)
         else:
             # Modo --no-open: imprimir URLs completas para copiar
-            for img in results["images"]:
-                source = os.path.basename(img["source"]) if img["type"] == "local" else img["source"]
-                if img.get("error"):
-                    console.print(f"[red]{source}: {img['error']}[/red]")
+            for img in report.images:
+                source = os.path.basename(img.source) if img.type == "local" else img.source
+                if img.error:
+                    console.print(f"[red]{source}: {img.error}[/red]")
                     continue
 
                 console.print(f"\n[bold]{source}[/bold]")
-                for engine, url in img["search_urls"].items():
+                for engine, url in img.search_urls.items():
                     console.print(f"  {engine}: {url}")
 
         console.print()

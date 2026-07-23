@@ -112,3 +112,40 @@ class EmailFinderResult:
     candidate_results: list[dict] = field(default_factory=list)  # candidatos no encontrados
     platforms_checked: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
+
+
+@dataclass
+class ProfileHit:
+    """Resultado de buscar un username en una plataforma."""
+    platform: str
+    url: str
+    found: bool = False
+    weak: bool = False  # 200 es senal debil en esta plataforma (confirmar manual)
+    error: Optional[str] = None
+
+
+@dataclass
+class ProfileReport:
+    """Reporte de busqueda de perfiles de un username en varias plataformas."""
+    username: str
+    found: list[ProfileHit] = field(default_factory=list)
+    not_found: list[ProfileHit] = field(default_factory=list)
+    errors: list[ProfileHit] = field(default_factory=list)
+
+
+@dataclass
+class ImageSearchResult:
+    """Busqueda inversa de una sola imagen."""
+    source: str
+    type: str  # "url" | "local"
+    search_urls: dict = field(default_factory=dict)  # {motor: url}
+    temp_url: Optional[str] = None
+    opened: bool = False
+    error: Optional[str] = None
+
+
+@dataclass
+class ImageCheckReport:
+    """Reporte de busqueda inversa de una o varias imagenes."""
+    images: list[ImageSearchResult] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)

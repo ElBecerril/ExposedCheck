@@ -9,6 +9,7 @@ from rich.panel import Panel
 from rich import box
 
 from config import REQUEST_TIMEOUT, USER_AGENT
+from models import ProfileHit, ProfileReport
 
 console = Console()
 
@@ -70,15 +71,13 @@ HEADERS = {
 }
 
 
-def _check_platform(platform_name: str, url: str, method: str) -> dict:
+def _check_platform(platform_name: str, url: str, method: str) -> ProfileHit:
     """Verifica si un username existe en una plataforma."""
-    result = {
-        "platform": platform_name,
-        "url": url,
-        "found": False,
-        "weak": platform_name in WEAK_SIGNAL_PLATFORMS,
-        "error": None,
-    }
+    hit = ProfileHit(
+        platform=platform_name,
+        url=url,
+        weak=platform_name in WEAK_SIGNAL_PLATFORMS,
+    )
     try:
         resp = requests.get(
             url,
@@ -88,25 +87,25 @@ def _check_platform(platform_name: str, url: str, method: str) -> dict:
         )
 
         if method == "status":
-            result["found"] = resp.status_code == 200
+            hit.found = resp.status_code == 200
         elif method.startswith("text:"):
             search_text = method[5:]
-            result["found"] = resp.status_code == 200 and search_text.lower() not in resp.text.lower()
+            hit.found = resp.status_code == 200 and search_text.lower() not in resp.text.lower()
 
     except requests.exceptions.Timeout:
-        result["error"] = "timeout"
+        hit.error = "timeout"
     except requests.exceptions.ConnectionError:
-        result["error"] = "conexion fallida"
+        hit.error = "conexion fallida"
     except Exception as e:
-        result["error"] = str(e)[:50]
+        hit.error = str(e)[:50]
 
-    return result
+    return hit
 
 
 class ProfileChecker:
     """Busca un username en multiples plataformas para detectar perfiles."""
 
-    def check(self, username: str, max_workers: int = 10) -> dict:
+    def check(self, username: str, max_workers: int = 10) -> ProfileReport:
         """Busca el username en todas las plataformas.
 
         Args:
@@ -114,9 +113,9 @@ class ProfileChecker:
             max_workers: Hilos concurrentes para las consultas.
 
         Returns:
-            Dict con perfiles encontrados, no encontrados, y errores.
+            ProfileReport con perfiles encontrados, no encontrados y errores.
         """
-        results = {"found": [], "not_found": [], "errors": [], "username": username}
+        report = ProfileReport(username=username)
 
         tasks = []
         for name, url_template, method in PLATFORMS:
@@ -130,25 +129,25 @@ class ProfileChecker:
                     for name, url, method in tasks
                 }
                 for future in as_completed(futures):
-                    result = future.result()
-                    if result["error"]:
-                        results["errors"].append(result)
-                    elif result["found"]:
-                        results["found"].append(result)
+                    hit = future.result()
+                    if hit.error:
+                        report.errors.append(hit)
+                    elif hit.found:
+                        report.found.append(hit)
                     else:
-                        results["not_found"].append(result)
+                        report.not_found.append(hit)
 
         # Ordenar por nombre de plataforma
-        results["found"].sort(key=lambda x: x["platform"])
-        results["not_found"].sort(key=lambda x: x["platform"])
+        report.found.sort(key=lambda x: x.platform)
+        report.not_found.sort(key=lambda x: x.platform)
 
-        return results
+        return report
 
-    def print_results(self, results: dict) -> None:
+    def print_results(self, report: ProfileReport) -> None:
         """Imprime los resultados de la busqueda de perfiles."""
-        username = results["username"]
-        found = results["found"]
-        errors = results["errors"]
+        username = report.username
+        found = report.found
+        errors = report.errors
 
         # Panel de resumen
         total = len(PLATFORMS)
@@ -186,15 +185,15 @@ class ProfileChecker:
             table.add_column("URL del Perfil", max_width=55)
             table.add_column("Confianza", justify="center", max_width=18)
 
-            has_weak = any(p.get("weak") for p in found)
+            has_weak = any(p.weak for p in found)
             for profile in found:
-                if profile.get("weak"):
+                if profile.weak:
                     conf = "[yellow]señal débil *[/yellow]"
                 else:
                     conf = "[green]probable[/green]"
                 table.add_row(
-                    profile["platform"],
-                    profile["url"],
+                    profile.platform,
+                    profile.url,
                     conf,
                 )
 
@@ -223,4 +222,4 @@ class ProfileChecker:
         if errors:
             console.print(f"\n[yellow]Plataformas con error de conexion ({error_count}):[/yellow]")
             for err in errors:
-                console.print(f"  [dim]- {err['platform']}: {err['error']}[/dim]")
+                console.print(f"  [dim]- {err.platform}: {err.error}[/dim]")

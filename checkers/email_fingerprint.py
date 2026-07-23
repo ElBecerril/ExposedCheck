@@ -346,11 +346,11 @@ class EmailFingerprint:
                 for name, url, method in tasks
             }
             for future in as_completed(futures):
-                result = future.result()
-                if result.get("found"):
-                    found.append(result)
+                hit = future.result()
+                if hit.found:
+                    found.append(hit)
 
-        found.sort(key=lambda x: x["platform"])
+        found.sort(key=lambda x: x.platform)
         return found
 
     # --- Impresion de resultados ---
@@ -524,7 +524,7 @@ class EmailFingerprint:
             table.add_column("URL", max_width=55)
 
             for p in profiles:
-                table.add_row(p["platform"], p["url"])
+                table.add_row(p.platform, p.url)
 
             console.print(table)
 
