@@ -53,6 +53,7 @@ def test_servicio_registrado_se_reporta(monkeypatch):
     errors = []
     services = fp._check_services("x@y.com", errors)
 
-    assert {"service": "Spotify", "registered": True} in services
-    assert {"service": "WordPress", "registered": False} in services
+    pairs = {(s.service, s.registered) for s in services}
+    assert ("Spotify", True) in pairs
+    assert ("WordPress", False) in pairs
     assert errors == []

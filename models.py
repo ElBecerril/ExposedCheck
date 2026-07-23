@@ -105,11 +105,28 @@ class CheckReport:
 
 
 @dataclass
+class FoundEmail:
+    """Email asociado a un username encontrado por OSINT o en brechas."""
+    email: str
+    source: str
+    confidence: str  # "ALTA" | "MEDIA-ALTA" | "MEDIA"
+    breach_count: int = 0
+
+
+@dataclass
+class CandidateResult:
+    """Email candidato comprobado y descartado (negativo real)."""
+    email: str
+    checked: bool = True
+    found: bool = False
+
+
+@dataclass
 class EmailFinderResult:
     """Resultado de busqueda de email asociado a un username."""
     username: str
-    found_emails: list[dict] = field(default_factory=list)       # {email, source, confidence, breach_count}
-    candidate_results: list[dict] = field(default_factory=list)  # candidatos no encontrados
+    found_emails: list[FoundEmail] = field(default_factory=list)
+    candidate_results: list[CandidateResult] = field(default_factory=list)
     platforms_checked: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
 
@@ -148,4 +165,72 @@ class ImageSearchResult:
 class ImageCheckReport:
     """Reporte de busqueda inversa de una o varias imagenes."""
     images: list[ImageSearchResult] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
+
+
+# --- Email fingerprint ---------------------------------------------------
+
+@dataclass
+class DomainInfo:
+    """Info basica del dominio de un email (MX, proveedor)."""
+    exists: bool = False
+    mx_records: list = field(default_factory=list)  # [(preferencia, servidor)]
+    type: str = "desconocido"
+
+
+@dataclass
+class GravatarProfile:
+    """Perfil publico de Gravatar asociado a un email."""
+    display_name: str = ""
+    username: str = ""
+    profile_url: str = ""
+    photo_url: str = ""
+    about: str = ""
+    location: str = ""
+    accounts: list[dict] = field(default_factory=list)  # [{platform, url}]
+
+
+@dataclass
+class GitHubUser:
+    """Usuario de GitHub asociado a un email."""
+    username: str = ""
+    profile_url: str = ""
+    avatar: str = ""
+
+
+@dataclass
+class GitHubPresence:
+    """Presencia del email en GitHub (busqueda por email)."""
+    found: bool = False
+    users: list[GitHubUser] = field(default_factory=list)
+
+
+@dataclass
+class GitLabPresence:
+    """Presencia del username derivado en GitLab."""
+    found: bool = False
+    username: str = ""
+
+
+@dataclass
+class ServiceRegistration:
+    """Deteccion de si un email esta registrado en un servicio."""
+    service: str
+    registered: bool
+
+
+@dataclass
+class FingerprintReport:
+    """Reporte OSINT completo de un email."""
+    email: str
+    domain: str = ""
+    username_part: str = ""
+    domain_info: Optional[DomainInfo] = None
+    gravatar: Optional[GravatarProfile] = None
+    breaches: list[BreachDetail] = field(default_factory=list)
+    infostealers: list[InfostealerDetail] = field(default_factory=list)
+    github_presence: Optional[GitHubPresence] = None
+    gitlab_presence: Optional[GitLabPresence] = None
+    registered_services: list[ServiceRegistration] = field(default_factory=list)
+    profiles_found: list[ProfileHit] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)

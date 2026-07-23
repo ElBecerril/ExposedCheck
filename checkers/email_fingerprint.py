@@ -18,6 +18,10 @@ from rich import box
 
 from config import REQUEST_TIMEOUT, USER_AGENT
 from apis import XposedOrNotAPI, LeakCheckAPI, HudsonRockAPI, GitHubOsintAPI, GitLabOsintAPI
+from models import (
+    FingerprintReport, DomainInfo, GravatarProfile,
+    GitHubUser, GitHubPresence, GitLabPresence, ServiceRegistration,
+)
 
 console = Console()
 logger = logging.getLogger(__name__)
@@ -46,58 +50,49 @@ class EmailFingerprint:
         self.github = GitHubOsintAPI()
         self.gitlab = GitLabOsintAPI()
 
-    def fingerprint(self, email: str) -> dict:
+    def fingerprint(self, email: str) -> FingerprintReport:
         """Ejecuta fingerprint completo del email.
 
         Returns:
-            Dict con todas las secciones del fingerprint.
+            FingerprintReport con todas las secciones del fingerprint.
         """
-        result = {
-            "email": email,
-            "domain": email.split("@")[1] if "@" in email else "",
-            "username_part": email.split("@")[0] if "@" in email else "",
-            "domain_info": {},
-            "gravatar": None,
-            "breaches": [],
-            "infostealers": [],
-            "github_presence": None,
-            "gitlab_presence": None,
-            "registered_services": [],
-            "profiles_found": [],
-            "errors": [],
-        }
+        report = FingerprintReport(
+            email=email,
+            domain=email.split("@")[1] if "@" in email else "",
+            username_part=email.split("@")[0] if "@" in email else "",
+        )
 
         # --- Fase 1: Info del dominio ---
         with console.status("[bold blue]Analizando dominio..."):
-            result["domain_info"] = self._check_domain(result["domain"], result["errors"])
+            report.domain_info = self._check_domain(report.domain, report.errors)
 
         # --- Fase 2: Gravatar ---
         with console.status("[bold blue]Consultando Gravatar..."):
-            result["gravatar"] = self._check_gravatar(email, result["errors"])
+            report.gravatar = self._check_gravatar(email, report.errors)
 
         # --- Fase 3: Brechas de datos (paralelo) ---
         with console.status("[bold blue]Consultando bases de datos de brechas..."):
-            self._check_breaches(email, result)
+            self._check_breaches(email, report)
 
         # --- Fase 4: GitHub/GitLab (buscar por email) ---
         with console.status("[bold blue]Buscando en GitHub/GitLab..."):
-            self._check_git_platforms(email, result)
+            self._check_git_platforms(email, report)
 
         # --- Fase 5: Deteccion de servicios registrados ---
         with console.status("[bold blue]Verificando registro en servicios..."):
-            result["registered_services"] = self._check_services(email, result["errors"])
+            report.registered_services = self._check_services(email, report.errors)
 
         # --- Fase 6: Buscar username derivado en plataformas ---
-        username = result["username_part"]
+        username = report.username_part
         if username and len(username) >= 3:
             with console.status(f"[bold blue]Buscando perfiles de '{username}'..."):
-                result["profiles_found"] = self._search_profiles(username)
+                report.profiles_found = self._search_profiles(username)
 
-        return result
+        return report
 
-    def _check_domain(self, domain: str, errors: list) -> dict:
+    def _check_domain(self, domain: str, errors: list) -> DomainInfo:
         """Verifica info basica del dominio (MX, tipo)."""
-        info = {"exists": False, "mx_records": [], "type": "desconocido"}
+        info = DomainInfo()
         if not domain:
             return info
         try:
@@ -123,21 +118,21 @@ class EmailFingerprint:
                     pass
 
             if mx_records:
-                info["exists"] = True
-                info["mx_records"] = mx_records
+                info.exists = True
+                info.mx_records = mx_records
 
                 # Detectar proveedor
                 mx_str = str(mx_records).lower()
                 if "google" in mx_str or "gmail" in mx_str:
-                    info["type"] = "Google Workspace"
+                    info.type = "Google Workspace"
                 elif "outlook" in mx_str or "microsoft" in mx_str:
-                    info["type"] = "Microsoft 365"
+                    info.type = "Microsoft 365"
                 elif "zoho" in mx_str:
-                    info["type"] = "Zoho Mail"
+                    info.type = "Zoho Mail"
                 elif "proton" in mx_str:
-                    info["type"] = "ProtonMail"
+                    info.type = "ProtonMail"
                 else:
-                    info["type"] = "Servidor propio / Otro"
+                    info.type = "Servidor propio / Otro"
 
             # Detectar dominios conocidos
             common = {
@@ -150,8 +145,8 @@ class EmailFingerprint:
                 "live.com": "Microsoft Live",
             }
             if domain.lower() in common:
-                info["type"] = common[domain.lower()]
-                info["exists"] = True
+                info.type = common[domain.lower()]
+                info.exists = True
 
         except Exception as e:
             # No enmascarar el fallo como "dominio desconocido": registrarlo.
@@ -160,7 +155,7 @@ class EmailFingerprint:
 
         return info
 
-    def _check_gravatar(self, email: str, errors: list) -> dict | None:
+    def _check_gravatar(self, email: str, errors: list) -> GravatarProfile | None:
         """Verifica si el email tiene perfil de Gravatar."""
         try:
             email_hash = hashlib.md5(email.strip().lower().encode()).hexdigest()
@@ -172,49 +167,49 @@ class EmailFingerprint:
             if resp.status_code == 200:
                 data = resp.json()
                 entry = data.get("entry", [{}])[0]
-                return {
-                    "display_name": entry.get("displayName", ""),
-                    "username": entry.get("preferredUsername", ""),
-                    "profile_url": entry.get("profileUrl", ""),
-                    "photo_url": entry.get("thumbnailUrl", ""),
-                    "about": entry.get("aboutMe", ""),
-                    "location": entry.get("currentLocation", ""),
-                    "accounts": [
+                return GravatarProfile(
+                    display_name=entry.get("displayName", ""),
+                    username=entry.get("preferredUsername", ""),
+                    profile_url=entry.get("profileUrl", ""),
+                    photo_url=entry.get("thumbnailUrl", ""),
+                    about=entry.get("aboutMe", ""),
+                    location=entry.get("currentLocation", ""),
+                    accounts=[
                         {"platform": a.get("shortname", ""), "url": a.get("url", "")}
                         for a in entry.get("accounts", [])
                     ],
-                }
+                )
         except Exception as e:
             # Un fallo de red no es lo mismo que "sin Gravatar": registrarlo.
             logger.debug("Fallo la consulta a Gravatar para %s: %s", email, e)
             errors.append(f"Gravatar: {e}")
         return None
 
-    def _check_breaches(self, email: str, result: dict) -> None:
+    def _check_breaches(self, email: str, report: FingerprintReport) -> None:
         """Consulta APIs de brechas en paralelo."""
         # XposedOrNot
         xon_result = self.xon.check(email)
         if xon_result.get("error"):
-            result["errors"].append(xon_result["error"])
-        result["breaches"].extend(xon_result.get("breaches", []))
+            report.errors.append(xon_result["error"])
+        report.breaches.extend(xon_result.get("breaches", []))
 
         # LeakCheck
         lc_result = self.leakcheck.check(email, query_type="email")
         if lc_result.get("error"):
-            result["errors"].append(lc_result["error"])
-        existing = {b.breach_name.lower() for b in result["breaches"]}
+            report.errors.append(lc_result["error"])
+        existing = {b.breach_name.lower() for b in report.breaches}
         for b in lc_result.get("breaches", []):
             if b.breach_name.lower() not in existing:
-                result["breaches"].append(b)
+                report.breaches.append(b)
                 existing.add(b.breach_name.lower())
 
         # Hudson Rock
         hr_result = self.hudson.check(email, query_type="email")
         if hr_result.get("error"):
-            result["errors"].append(hr_result["error"])
-        result["infostealers"].extend(hr_result.get("infostealers", []))
+            report.errors.append(hr_result["error"])
+        report.infostealers.extend(hr_result.get("infostealers", []))
 
-    def _check_git_platforms(self, email: str, result: dict) -> None:
+    def _check_git_platforms(self, email: str, report: FingerprintReport) -> None:
         """Busca presencia del email en GitHub y GitLab."""
         # GitHub: buscar usuarios con ese email
         try:
@@ -227,21 +222,21 @@ class EmailFingerprint:
                 data = resp.json()
                 if data.get("total_count", 0) > 0:
                     users = data.get("items", [])
-                    result["github_presence"] = {
-                        "found": True,
-                        "users": [
-                            {
-                                "username": u.get("login", ""),
-                                "profile_url": u.get("html_url", ""),
-                                "avatar": u.get("avatar_url", ""),
-                            }
+                    report.github_presence = GitHubPresence(
+                        found=True,
+                        users=[
+                            GitHubUser(
+                                username=u.get("login", ""),
+                                profile_url=u.get("html_url", ""),
+                                avatar=u.get("avatar_url", ""),
+                            )
                             for u in users[:5]
                         ],
-                    }
+                    )
                 else:
-                    result["github_presence"] = {"found": False, "users": []}
+                    report.github_presence = GitHubPresence(found=False)
         except Exception as e:
-            result["errors"].append(f"GitHub search: {e}")
+            report.errors.append(f"GitHub search: {e}")
 
         # GitLab: buscar usuarios por email no es posible sin auth,
         # pero podemos probar con el username extraido
@@ -249,13 +244,13 @@ class EmailFingerprint:
         try:
             gl_result = self.gitlab.check(username)
             if not gl_result.get("error"):
-                result["gitlab_presence"] = {"found": True, "username": username}
+                report.gitlab_presence = GitLabPresence(found=True, username=username)
             else:
-                result["gitlab_presence"] = {"found": False}
+                report.gitlab_presence = GitLabPresence(found=False)
         except Exception:
-            result["gitlab_presence"] = {"found": False}
+            report.gitlab_presence = GitLabPresence(found=False)
 
-    def _check_services(self, email: str, errors: list) -> list[dict]:
+    def _check_services(self, email: str, errors: list) -> list[ServiceRegistration]:
         """Intenta detectar si el email esta registrado en servicios comunes."""
         services = []
 
@@ -274,7 +269,7 @@ class EmailFingerprint:
             try:
                 registered = check_fn(email)
                 if registered is not None:
-                    services.append({"service": name, "registered": registered})
+                    services.append(ServiceRegistration(service=name, registered=registered))
             except Exception as e:
                 # Sin esto, un servicio que falla se veria como "no registrado".
                 logger.debug("Fallo el check de %s: %s", name, e)
@@ -355,27 +350,27 @@ class EmailFingerprint:
 
     # --- Impresion de resultados ---
 
-    def print_results(self, data: dict) -> None:
+    def print_results(self, report: FingerprintReport) -> None:
         """Imprime el fingerprint completo."""
-        email = data["email"]
-        domain = data["domain"]
-        domain_info = data["domain_info"]
-        gravatar = data["gravatar"]
-        breaches = data["breaches"]
-        infostealers = data["infostealers"]
-        github = data["github_presence"]
-        gitlab = data["gitlab_presence"]
-        services = data["registered_services"]
-        profiles = data["profiles_found"]
-        errors = data["errors"]
+        email = report.email
+        domain = report.domain
+        domain_info = report.domain_info or DomainInfo()
+        gravatar = report.gravatar
+        breaches = report.breaches
+        infostealers = report.infostealers
+        github = report.github_presence
+        gitlab = report.gitlab_presence
+        services = report.registered_services
+        profiles = report.profiles_found
+        errors = report.errors
 
         # === Header ===
         total_findings = (
             len(breaches)
             + len(infostealers)
             + (1 if gravatar else 0)
-            + (len(github.get("users", [])) if github and github.get("found") else 0)
-            + len([s for s in services if s.get("registered")])
+            + (len(github.users) if github and github.found else 0)
+            + len([s for s in services if s.registered])
             + len(profiles)
         )
 
@@ -397,7 +392,7 @@ class EmailFingerprint:
 
         console.print(Panel(
             f"[bold]Email:[/bold] {email}\n"
-            f"[bold]Dominio:[/bold] {domain} ({domain_info.get('type', '?')})\n"
+            f"[bold]Dominio:[/bold] {domain} ({domain_info.type})\n"
             f"[bold]Hallazgos totales:[/bold] {total_findings}\n"
             f"[bold]Brechas:[/bold] {len(breaches)} | "
             f"[bold]Infostealers:[/bold] {len(infostealers)} | "
@@ -410,12 +405,12 @@ class EmailFingerprint:
         ))
 
         # === Dominio ===
-        if domain_info.get("mx_records"):
+        if domain_info.mx_records:
             mx_lines = []
-            for pref, server in domain_info["mx_records"][:3]:
+            for pref, server in domain_info.mx_records[:3]:
                 mx_lines.append(f"  {pref} -> {server}")
             console.print(Panel(
-                f"[bold]Proveedor:[/bold] {domain_info.get('type', 'Desconocido')}\n"
+                f"[bold]Proveedor:[/bold] {domain_info.type}\n"
                 f"[bold]MX Records:[/bold]\n" + "\n".join(mx_lines),
                 title="[bold]Dominio[/bold]",
                 border_style="blue",
@@ -424,19 +419,19 @@ class EmailFingerprint:
         # === Gravatar ===
         if gravatar:
             lines = []
-            if gravatar.get("display_name"):
-                lines.append(f"[bold]Nombre:[/bold] {gravatar['display_name']}")
-            if gravatar.get("username"):
-                lines.append(f"[bold]Username:[/bold] {gravatar['username']}")
-            if gravatar.get("location"):
-                lines.append(f"[bold]Ubicacion:[/bold] {gravatar['location']}")
-            if gravatar.get("about"):
-                lines.append(f"[bold]Bio:[/bold] {gravatar['about'][:200]}")
-            if gravatar.get("profile_url"):
-                lines.append(f"[bold]Perfil:[/bold] {gravatar['profile_url']}")
-            if gravatar.get("accounts"):
+            if gravatar.display_name:
+                lines.append(f"[bold]Nombre:[/bold] {gravatar.display_name}")
+            if gravatar.username:
+                lines.append(f"[bold]Username:[/bold] {gravatar.username}")
+            if gravatar.location:
+                lines.append(f"[bold]Ubicacion:[/bold] {gravatar.location}")
+            if gravatar.about:
+                lines.append(f"[bold]Bio:[/bold] {gravatar.about[:200]}")
+            if gravatar.profile_url:
+                lines.append(f"[bold]Perfil:[/bold] {gravatar.profile_url}")
+            if gravatar.accounts:
                 lines.append("[bold]Cuentas vinculadas:[/bold]")
-                for acc in gravatar["accounts"]:
+                for acc in gravatar.accounts:
                     lines.append(f"  - {acc['platform']}: {acc['url']}")
 
             console.print(Panel(
@@ -446,11 +441,11 @@ class EmailFingerprint:
             ))
 
         # === GitHub ===
-        if github and github.get("found"):
+        if github and github.found:
             lines = []
-            for u in github["users"]:
+            for u in github.users:
                 lines.append(
-                    f"  [bold]{u['username']}[/bold] - {u['profile_url']}"
+                    f"  [bold]{u.username}[/bold] - {u.profile_url}"
                 )
             console.print(Panel(
                 "[bold]Usuarios asociados a este email:[/bold]\n" + "\n".join(lines),
@@ -459,8 +454,8 @@ class EmailFingerprint:
             ))
 
         # === GitLab ===
-        if gitlab and gitlab.get("found"):
-            console.print(f"  [dim]GitLab:[/dim] Perfil encontrado como '{gitlab.get('username')}'")
+        if gitlab and gitlab.found:
+            console.print(f"  [dim]GitLab:[/dim] Perfil encontrado como '{gitlab.username}'")
 
         # === Brechas ===
         if breaches:
@@ -503,9 +498,9 @@ class EmailFingerprint:
             console.print(table)
 
         # === Servicios registrados ===
-        registered = [s for s in services if s.get("registered")]
+        registered = [s for s in services if s.registered]
         if registered:
-            lines = [f"  [cyan]>[/cyan] {s['service']}" for s in registered]
+            lines = [f"  [cyan]>[/cyan] {s.service}" for s in registered]
             console.print(Panel(
                 "[bold]El email parece estar registrado en:[/bold]\n" + "\n".join(lines),
                 title="[bold]Servicios Detectados[/bold]",
@@ -514,7 +509,7 @@ class EmailFingerprint:
 
         # === Perfiles encontrados con username derivado ===
         if profiles:
-            username = data["username_part"]
+            username = report.username_part
             table = Table(
                 title=f"Perfiles encontrados con username '{username}'",
                 box=box.ROUNDED,
@@ -549,7 +544,7 @@ class EmailFingerprint:
         if profiles:
             reco_lines.append(
                 f"[bold]3.[/bold] Se encontraron {len(profiles)} perfiles con el username "
-                f"'{data['username_part']}'. Verificar si son del propietario legitimo o "
+                f"'{report.username_part}'. Verificar si son del propietario legitimo o "
                 "si el atacante creo cuentas falsas."
             )
         if gravatar:

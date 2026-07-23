@@ -5,7 +5,7 @@ from rich.table import Table
 from rich.panel import Panel
 from rich import box
 
-from models import EmailFinderResult
+from models import EmailFinderResult, FoundEmail, CandidateResult
 from apis.github_osint import GitHubOsintAPI
 from apis.gitlab_osint import GitLabOsintAPI
 from apis.email_generator import generate_candidates, EmailCandidateVerifier
@@ -45,12 +45,11 @@ class EmailFinder:
             if gh_result.get("error"):
                 result.errors.append(gh_result["error"])
             for email in gh_result.get("emails", []):
-                result.found_emails.append({
-                    "email": email,
-                    "source": "GitHub (perfil/commits)",
-                    "confidence": "ALTA",
-                    "breach_count": 0,
-                })
+                result.found_emails.append(FoundEmail(
+                    email=email,
+                    source="GitHub (perfil/commits)",
+                    confidence="ALTA",
+                ))
 
         # GitLab
         with console.status("[bold blue]Consultando GitLab API..."):
@@ -60,14 +59,13 @@ class EmailFinder:
                 result.errors.append(gl_result["error"])
             for email in gl_result.get("emails", []):
                 # Evitar duplicados
-                existing = {e["email"].lower() for e in result.found_emails}
+                existing = {e.email.lower() for e in result.found_emails}
                 if email.lower() not in existing:
-                    result.found_emails.append({
-                        "email": email,
-                        "source": "GitLab (perfil publico)",
-                        "confidence": "ALTA",
-                        "breach_count": 0,
-                    })
+                    result.found_emails.append(FoundEmail(
+                        email=email,
+                        source="GitLab (perfil publico)",
+                        confidence="ALTA",
+                    ))
 
         found_phase1 = len(result.found_emails)
         if found_phase1 > 0:
@@ -79,7 +77,7 @@ class EmailFinder:
         console.print("[bold cyan]Fase 2:[/bold cyan] Generando y verificando emails candidatos en brechas...\n")
 
         candidates = generate_candidates(username)
-        existing_emails = {e["email"].lower() for e in result.found_emails}
+        existing_emails = {e.email.lower() for e in result.found_emails}
 
         # Filtrar candidatos que ya encontramos en Fase 1
         candidates_to_check = [c for c in candidates if c.lower() not in existing_emails]
@@ -95,19 +93,19 @@ class EmailFinder:
                 else:
                     confidence = "MEDIA"
 
-                result.found_emails.append({
-                    "email": v["email"],
-                    "source": f"Brechas ({', '.join(v['sources'])})",
-                    "confidence": confidence,
-                    "breach_count": v["breach_count"],
-                })
+                result.found_emails.append(FoundEmail(
+                    email=v["email"],
+                    source=f"Brechas ({', '.join(v['sources'])})",
+                    confidence=confidence,
+                    breach_count=v["breach_count"],
+                ))
             elif v.get("verified"):
                 # Comprobado de verdad y sin brechas: negativo real.
-                result.candidate_results.append({
-                    "email": v["email"],
-                    "checked": True,
-                    "found": False,
-                })
+                result.candidate_results.append(CandidateResult(
+                    email=v["email"],
+                    checked=True,
+                    found=False,
+                ))
             else:
                 # No se pudo comprobar (rate limit / error): NO es un negativo.
                 unverified += 1
@@ -124,11 +122,11 @@ class EmailFinder:
     def print_results(self, result: EmailFinderResult) -> None:
         """Imprime los resultados de la busqueda de emails."""
         found = result.found_emails
-        total_candidates = len(result.candidate_results) + len([e for e in found if e["confidence"] != "ALTA"])
+        total_candidates = len(result.candidate_results) + len([e for e in found if e.confidence != "ALTA"])
 
         # Panel de resumen
         if found:
-            risk_color = "green" if any(e["confidence"] == "ALTA" for e in found) else "yellow"
+            risk_color = "green" if any(e.confidence == "ALTA" for e in found) else "yellow"
             risk_text = f"Se encontraron {len(found)} email(s) asociados"
         else:
             risk_color = "yellow"
@@ -162,7 +160,7 @@ class EmailFinder:
             table.add_column("Brechas", justify="center", max_width=8)
 
             for email_info in found:
-                confidence = email_info["confidence"]
+                confidence = email_info.confidence
                 if confidence == "ALTA":
                     conf_style = "[bold green]ALTA[/bold green]"
                 elif confidence == "MEDIA-ALTA":
@@ -170,11 +168,11 @@ class EmailFinder:
                 else:
                     conf_style = "[yellow]MEDIA[/yellow]"
 
-                breach_text = str(email_info["breach_count"]) if email_info["breach_count"] > 0 else "-"
+                breach_text = str(email_info.breach_count) if email_info.breach_count > 0 else "-"
 
                 table.add_row(
-                    email_info["email"],
-                    email_info["source"],
+                    email_info.email,
+                    email_info.source,
                     conf_style,
                     breach_text,
                 )
