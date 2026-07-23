@@ -135,7 +135,15 @@ python main.py --find-email mi_usuario
 
 # Fingerprint OSINT completo de un email
 python main.py --fingerprint correo@ejemplo.com
+
+# Guardar los resultados en JSON (ademas de mostrarlos en consola)
+python main.py -e correo@ejemplo.com -u mi_usuario --json resultado.json
 ```
+
+El JSON incluye metadata (`tool`, `version`, `generated_at`) y un bloque
+`results` por tipo de check. Los reportes de brechas traen el nivel de
+riesgo calculado (`overall_risk`), incluido `"desconocido"` cuando ninguna
+fuente respondio (no se confunde "sin brechas" con "no se pudo consultar").
 
 ## Ejemplo de salida
 

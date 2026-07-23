@@ -5,6 +5,11 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# --- Metadata ---
+
+APP_NAME = "ExposedCheck"
+APP_VERSION = "1.1.0"
+
 # --- API Endpoints ---
 
 XPOSEDORNOT_BREACH_URL = "https://api.xposedornot.com/v1/breach-analytics"

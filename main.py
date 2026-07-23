@@ -111,6 +111,11 @@ Ejemplos:
         action="store_true",
         help="No abrir automaticamente URLs en el navegador (solo mostrar)",
     )
+    parser.add_argument(
+        "--json",
+        metavar="ARCHIVO",
+        help="Guardar los resultados en un archivo JSON (ademas de mostrarlos)",
+    )
 
     return parser.parse_args()
 
@@ -411,6 +416,8 @@ def cli_mode(args: argparse.Namespace) -> None:
     reporter = ConsoleReporter()
     remediation = RemediationGuide()
     all_reports = []
+    # Resultados por tipo de check, para el export JSON opcional (--json).
+    json_results = {}
 
     # --- Verificacion de Email ---
     if args.email:
@@ -426,6 +433,7 @@ def cli_mode(args: argparse.Namespace) -> None:
 
         reporter.print_report(report)
         all_reports.append(report)
+        json_results["email"] = report
 
     # --- Verificacion de Username ---
     if args.username:
@@ -434,6 +442,7 @@ def cli_mode(args: argparse.Namespace) -> None:
         report = checker.check(args.username)
         reporter.print_report(report)
         all_reports.append(report)
+        json_results["username"] = report
 
     # --- Verificacion de Telefono ---
     if args.phone:
@@ -442,6 +451,7 @@ def cli_mode(args: argparse.Namespace) -> None:
         report = checker.check(args.phone)
         reporter.print_report(report)
         all_reports.append(report)
+        json_results["phone"] = report
 
     # --- Busqueda inversa de imagenes ---
     if args.reverse_image:
@@ -450,6 +460,7 @@ def cli_mode(args: argparse.Namespace) -> None:
         auto_open = not args.no_open
         results = checker.check(args.reverse_image, auto_open=auto_open)
         checker.print_results(results)
+        json_results["image"] = results
 
     # --- Busqueda de perfiles duplicados ---
     if args.search_profiles:
@@ -457,6 +468,7 @@ def cli_mode(args: argparse.Namespace) -> None:
         checker = ProfileChecker()
         results = checker.check(args.search_profiles)
         checker.print_results(results)
+        json_results["profiles"] = results
 
     # --- Fingerprint de email ---
     if args.fingerprint:
@@ -470,6 +482,7 @@ def cli_mode(args: argparse.Namespace) -> None:
         fp = EmailFingerprint()
         result = fp.fingerprint(args.fingerprint)
         fp.print_results(result)
+        json_results["fingerprint"] = result
 
     # --- Busqueda de email por username ---
     if args.find_email:
@@ -477,6 +490,7 @@ def cli_mode(args: argparse.Namespace) -> None:
         finder = EmailFinder()
         result = finder.check(args.find_email)
         finder.print_results(result)
+        json_results["email_finder"] = result
 
     # --- Guia de Remediacion ---
     combined = _merge_reports(all_reports)
@@ -484,6 +498,18 @@ def cli_mode(args: argparse.Namespace) -> None:
         console.print()
         console.rule("[bold]Guia de Remediacion y Eliminacion de Datos[/bold]")
         remediation.print_guide(combined)
+
+    # --- Export JSON opcional ---
+    if args.json:
+        if json_results:
+            from reporting.export import export_json
+            try:
+                export_json(json_results, args.json)
+                console.print(f"\n[green]Resultados guardados en:[/green] {args.json}")
+            except OSError as e:
+                console.print(f"\n[red]No se pudo escribir el JSON en {args.json}: {e}[/red]")
+        else:
+            console.print("\n[yellow]--json: no se ejecuto ningun check, no hay nada que guardar.[/yellow]")
 
     console.print()
 
